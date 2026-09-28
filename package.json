@@ -1,0 +1,26 @@
+{
+  "name": "aurazone-v2",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "check-types": "turbo run check-types",
+    "db:generate": "dotenv -e .env -- pnpm --filter @aurazone/database db:generate",
+    "db:push": "dotenv -e .env -- pnpm --filter @aurazone/database exec prisma db push",
+    "db:migrate": "dotenv -e .env -- pnpm --filter @aurazone/database db:migrate",
+    "db:migrate:dev": "dotenv -e .env -- pnpm --filter @aurazone/database run db:migrate:dev",
+    "db:seed": "dotenv -e .env -- pnpm --filter @aurazone/database db:seed",
+    "db:studio": "dotenv -e .env -- pnpm --filter @aurazone/database db:studio"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.1.2",
+    "typescript": "^5.5.4"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

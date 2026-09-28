@@ -1,0 +1,179 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   AuraZone V2 — Design Token System
+   Shared between apps/customer and apps/admin
+   ─────────────────────────────────────────────────────────────────────────────*/
+
+@import "tailwindcss";
+
+@theme {
+  /* ── Fonts ──────────────────────────────────────────────────────── */
+  --font-heading: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* ── Backgrounds ────────────────────────────────────────────────── */
+  --color-bg-base: #F8F8F7;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-muted: #F3F4F6;
+  --color-bg-elevated: #FFFFFF;
+
+  /* ── Core Colors ────────────────────────────────────────────────── */
+  --color-primary: #1F2937;
+  --color-primary-hover: #111827;
+  --color-accent: #6F7F5F;
+  --color-accent-light: #F0F2ED;
+  --color-accent-hover: #5A6B4D;
+  --color-accent-warm: #C4956A;
+  --color-accent-warm-light: #FAF3EC;
+
+  /* ── Semantic ───────────────────────────────────────────────────── */
+  --color-success: #22C55E;
+  --color-success-bg: #F0FDF4;
+  --color-success-text: #15803D;
+
+  --color-warning: #F59E0B;
+  --color-warning-bg: #FFFBEB;
+  --color-warning-text: #B45309;
+
+  --color-danger: #EF4444;
+  --color-danger-bg: #FEF2F2;
+  --color-danger-text: #B91C1C;
+
+  --color-info: #3B82F6;
+  --color-info-bg: #EFF6FF;
+  --color-info-text: #1D4ED8;
+
+  /* ── Text ───────────────────────────────────────────────────────── */
+  --color-text-primary: #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-tertiary: #9CA3AF;
+  --color-text-disabled: #D1D5DB;
+  --color-text-inverse: #FFFFFF;
+
+  /* ── Borders ────────────────────────────────────────────────────── */
+  --color-border: #E5E7EB;
+  --color-border-muted: #F3F4F6;
+  --color-border-strong: #D1D5DB;
+  --color-border-focus: #6F7F5F;
+
+  /* ── Radii ──────────────────────────────────────────────────────── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ────────────────────────────────────────────────────── */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  --shadow-accent: 0 8px 16px -2px rgb(111 127 95 / 0.25);
+  --shadow-warm: 0 8px 16px -2px rgb(196 149 106 / 0.2);
+
+  /* ── Transitions ────────────────────────────────────────────────── */
+  --transition-fast: 150ms;
+  --transition-base: 200ms;
+  --transition-slow: 300ms;
+
+  /* ── Spacing ────────────────────────────────────────────────────── */
+  --page-padding-sm: 16px;
+  --page-padding: 24px;
+  --page-padding-lg: 32px;
+
+  /* ── Admin Layout ───────────────────────────────────────────────── */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --header-height: 56px;
+}
+
+/* ─── Shared Base Styles ─────────────────────────────────────────────────────*/
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  /* No global transition-all. Apply transitions explicitly. */
+  a, button {
+    transition: color var(--transition-base), background-color var(--transition-base),
+      border-color var(--transition-base), opacity var(--transition-base),
+      box-shadow var(--transition-base), transform var(--transition-fast);
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="number"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* ─── Shared Component Classes ───────────────────────────────────────────────*/
+@layer components {
+  /* Card — white surface with border and radius */
+  .card {
+    background-color: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xs);
+  }
+
+  /* Badge base */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+  }
+  .badge-success { background: var(--color-success-bg); color: var(--color-success-text); }
+  .badge-warning { background: var(--color-warning-bg); color: var(--color-warning-text); }
+  .badge-danger  { background: var(--color-danger-bg);  color: var(--color-danger-text);  }
+  .badge-info    { background: var(--color-info-bg);    color: var(--color-info-text);    }
+
+  /* Skeleton shimmer */
+  .shimmer {
+    animation: shimmer 1.8s infinite linear;
+    background: linear-gradient(
+      90deg,
+      var(--color-bg-muted) 0%,
+      var(--color-border-muted) 40%,
+      var(--color-bg-muted) 80%
+    );
+    background-size: 400px 100%;
+  }
+
+  /* Fade in */
+  .fade-in {
+    animation: fadeIn var(--transition-slow) ease-out both;
+  }
+}
+
+/* ─── Keyframes ──────────────────────────────────────────────────────────────*/
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}

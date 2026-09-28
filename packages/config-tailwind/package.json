@@ -1,0 +1,9 @@
+{
+  "name": "@aurazone/config-tailwind",
+  "version": "0.0.1",
+  "private": true,
+  "files": ["tokens.css", "tailwind.config.ts"],
+  "peerDependencies": {
+    "tailwindcss": ">=4.0.0"
+  }
+}
