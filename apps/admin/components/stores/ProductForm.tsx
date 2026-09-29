@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { ArrowLeft, Plus, Trash2, X, Wand2, Package, Check } from "lucide-react";
+import ImageUploader from "@/components/ui/ImageUploader";
 
 interface AttributeTemplate {
   id: string;
@@ -18,12 +19,20 @@ interface AttributeTemplate {
   isFilterable: boolean;
 }
 
+interface UploadedImage {
+  id?: string;
+  url: string;
+  position: number;
+}
+
 interface VariantForm {
+  id?: string; // populated when editing
   sku: string;
   price: string;
   compareAtPrice: string;
   quantity: string;
   attributes: Record<string, string>;
+  images: UploadedImage[];
 }
 
 export default function ProductForm({
@@ -77,13 +86,14 @@ export default function ProductForm({
   });
 
   const [variants, setVariants] = useState<VariantForm[]>([
-    { sku: "", price: "", compareAtPrice: "", quantity: "0", attributes: {} },
+    { sku: "", price: "", compareAtPrice: "", quantity: "0", attributes: {}, images: [] },
   ]);
 
   const [productAttrs, setProductAttrs] = useState<Record<string, string>>({});
 
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
 
   // Load existing product data when editing
   useEffect(() => {
@@ -104,6 +114,7 @@ export default function ProductForm({
       if (p.variants?.length) {
         setVariants(
           p.variants.map((v: any) => ({
+            id: v.id,
             sku: v.sku ?? "",
             price: String(v.price ?? ""),
             compareAtPrice: v.compareAtPrice ? String(v.compareAtPrice) : "",
@@ -112,6 +123,11 @@ export default function ProductForm({
               (acc: Record<string, string>, a: any) => ({ ...acc, [a.key]: a.value }),
               {}
             ),
+            images: (v.images ?? []).map((img: any, i: number) => ({
+              id: img.id,
+              url: img.url,
+              position: img.position ?? i,
+            })),
           }))
         );
       }
@@ -151,19 +167,83 @@ export default function ProductForm({
         compareAtPrice: "",
         quantity: "0",
         attributes: attrs,
+        images: [],
       }))
     );
   };
 
   const createMutation = useMutation({
     mutationFn: (data: any) => api.post("/admin/products", data),
-    onSuccess: () => onSuccess(),
+    onSuccess: async (result: any) => {
+      // After product creation, upload images for each variant
+      const createdProduct = result?.data;
+      if (createdProduct?.variants) {
+        await uploadVariantImages(createdProduct.id, createdProduct.variants);
+      }
+      onSuccess();
+    },
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => api.put(`/admin/products/${productId}`, data),
-    onSuccess: () => onSuccess(),
+    onSuccess: async () => {
+      // Handle image additions/deletions for existing product
+      if (productId) {
+        await syncVariantImages(productId);
+      }
+      onSuccess();
+    },
   });
+
+  /** Upload images for newly created variants */
+  const uploadVariantImages = async (prodId: string, createdVariants: any[]) => {
+    for (let i = 0; i < variants.length; i++) {
+      const variantForm = variants[i];
+      const createdVariant = createdVariants[i];
+      if (!createdVariant || variantForm.images.length === 0) continue;
+
+      try {
+        await api.post(`/admin/products/${prodId}/variants/${createdVariant.id}/images`, {
+          urls: variantForm.images.map((img, idx) => ({
+            url: img.url,
+            position: idx,
+          })),
+        });
+      } catch (err) {
+        console.error("Failed to save variant images:", err);
+      }
+    }
+  };
+
+  /** Sync images for existing product (add new, delete removed) */
+  const syncVariantImages = async (prodId: string) => {
+    // Delete removed images
+    for (const imageId of deletedImageIds) {
+      try {
+        await api.delete(`/admin/products/${prodId}/images/${imageId}`);
+      } catch (err) {
+        console.error("Failed to delete image:", err);
+      }
+    }
+
+    // Add new images (those without an id)
+    for (const variant of variants) {
+      if (!variant.id) continue;
+      const newImages = variant.images.filter(img => !img.id);
+      if (newImages.length === 0) continue;
+
+      try {
+        await api.post(`/admin/products/${prodId}/variants/${variant.id}/images`, {
+          urls: newImages.map((img, idx) => ({
+            url: img.url,
+            position: (variant.images.length - newImages.length) + idx,
+          })),
+        });
+      } catch (err) {
+        console.error("Failed to save new variant images:", err);
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,11 +281,17 @@ export default function ProductForm({
   const addVariant = () => {
     setVariants(prev => [
       ...prev,
-      { sku: "", price: prev[0]?.price || "", compareAtPrice: "", quantity: "0", attributes: {} },
+      { sku: "", price: prev[0]?.price || "", compareAtPrice: "", quantity: "0", attributes: {}, images: [] },
     ]);
   };
 
   const removeVariant = (index: number) => {
+    // Track deleted image IDs from removed variant
+    const removed = variants[index];
+    if (removed.images) {
+      const ids = removed.images.filter(img => img.id).map(img => img.id!);
+      setDeletedImageIds(prev => [...prev, ...ids]);
+    }
     setVariants(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -219,6 +305,23 @@ export default function ProductForm({
     setVariants(prev => prev.map((v, i) =>
       i === index ? { ...v, attributes: { ...v.attributes, [key]: value } } : v
     ));
+  };
+
+  const updateVariantImages = (index: number, images: UploadedImage[]) => {
+    setVariants(prev => prev.map((v, i) =>
+      i === index ? { ...v, images } : v
+    ));
+  };
+
+  const handleImageRemove = (variantIdx: number, imageIdx: number) => {
+    const img = variants[variantIdx].images[imageIdx];
+    if (img.id) {
+      setDeletedImageIds(prev => [...prev, img.id!]);
+    }
+    const updated = variants[variantIdx].images
+      .filter((_, i) => i !== imageIdx)
+      .map((img, i) => ({ ...img, position: i }));
+    updateVariantImages(variantIdx, updated);
   };
 
   // Dynamic field renderer
@@ -485,7 +588,7 @@ export default function ProductForm({
           </div>
 
           {variants.map((variant, idx) => (
-            <div key={idx} className="rounded-md border border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-3 space-y-2">
+            <div key={idx} className="rounded-md border border-[var(--color-border-muted)] bg-[var(--color-bg-base)] p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-semibold text-[var(--color-text-tertiary)]">Variant #{idx + 1}</p>
                 {variants.length > 1 && (
@@ -538,6 +641,14 @@ export default function ProductForm({
                   ))}
                 </div>
               )}
+
+              {/* Variant Images */}
+              <ImageUploader
+                label="Images"
+                images={variant.images}
+                onChange={(imgs) => updateVariantImages(idx, imgs)}
+                maxImages={8}
+              />
             </div>
           ))}
         </div>

@@ -66,9 +66,9 @@ export default function ProductsPage() {
           <p className="page-label">Catalog</p>
           <h1 className="page-title">Products</h1>
         </div>
-        <Link href="/products/new" className="btn-primary flex items-center gap-2">
+        <Link href="/stores" className="btn-primary flex items-center gap-2">
           <Plus size={16} />
-          New Product
+          Add Product in Store
         </Link>
       </div>
 
@@ -194,8 +194,9 @@ export default function ProductsPage() {
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link
-                            href={`/products/${product.id}`}
+                            href={`/stores/${product.store.id}`}
                             className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-[var(--color-bg-muted)] text-[var(--color-text-secondary)]"
+                            title="Manage in store"
                           >
                             <Edit2 size={13} />
                           </Link>

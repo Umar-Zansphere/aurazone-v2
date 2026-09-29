@@ -247,6 +247,63 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // ╔═══════════════════════════════════════════════════════════════╗
+  // ║  PRODUCT IMAGES                                               ║
+  // ╚═══════════════════════════════════════════════════════════════╝
+
+  // Add images to a variant
+  fastify.post("/products/:productId/variants/:variantId/images", async (request, reply) => {
+    const { productId, variantId } = request.params as { productId: string; variantId: string };
+    const { urls } = request.body as { urls: Array<{ url: string; altText?: string; position?: number }> };
+
+    try {
+      const product = await productService.getProductById(productId);
+      await assertStoreAccess(request.user!, (product as any).storeId ?? (product as any).store?.id);
+
+      // Verify variant belongs to product
+      const variant = (product as any).variants?.find((v: any) => v.id === variantId);
+      if (!variant) return sendError(reply, "Variant not found", 404);
+
+      // Get current max position
+      const existingImages = await prisma.variantImage.findMany({
+        where: { variantId },
+        orderBy: { position: "desc" },
+        take: 1,
+      });
+      let nextPos = existingImages.length > 0 ? existingImages[0].position + 1 : 0;
+
+      const created = await prisma.variantImage.createMany({
+        data: urls.map((img, i) => ({
+          variantId,
+          url: img.url,
+          altText: img.altText ?? null,
+          position: img.position ?? nextPos + i,
+        })),
+      });
+
+      return sendSuccess(reply, { count: created.count }, 201);
+    } catch (err: unknown) {
+      const error = err as Error & { statusCode?: number };
+      return sendError(reply, error.message, error.statusCode ?? 500);
+    }
+  });
+
+  // Delete a variant image
+  fastify.delete("/products/:productId/images/:imageId", async (request, reply) => {
+    const { productId, imageId } = request.params as { productId: string; imageId: string };
+
+    try {
+      const product = await productService.getProductById(productId);
+      await assertStoreAccess(request.user!, (product as any).storeId ?? (product as any).store?.id);
+
+      await prisma.variantImage.delete({ where: { id: imageId } });
+      return sendSuccess(reply, { message: "Image deleted" });
+    } catch (err: unknown) {
+      const error = err as Error & { statusCode?: number };
+      return sendError(reply, error.message, error.statusCode ?? 500);
+    }
+  });
+
+  // ╔═══════════════════════════════════════════════════════════════╗
   // ║  COUPONS                                                      ║
   // ╚═══════════════════════════════════════════════════════════════╝
 

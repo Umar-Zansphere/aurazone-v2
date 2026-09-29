@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Edit2, ExternalLink, Globe, Palette } from "lucide-react";
 import { useState } from "react";
+import ImageUploader from "@/components/ui/ImageUploader";
 
 interface Store {
   id: string;
@@ -26,6 +27,8 @@ export default function StoreOverview({ store }: { store: Store }) {
     description: store.description ?? "",
     accentColor: store.accentColor ?? "#6F7F5F",
     isActive: store.isActive,
+    logoUrl: store.logoUrl ?? "",
+    bannerUrl: store.bannerUrl ?? "",
   });
 
   const updateMutation = useMutation({
@@ -70,6 +73,23 @@ export default function StoreOverview({ store }: { store: Store }) {
             onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
           />
         </div>
+
+        {/* Logo & Banner Upload */}
+        <div className="grid grid-cols-2 gap-4">
+          <ImageUploader
+            label="Store Logo"
+            single
+            images={form.logoUrl ? [{ url: form.logoUrl, position: 0 }] : []}
+            onChange={(imgs) => setForm(f => ({ ...f, logoUrl: imgs[0]?.url ?? "" }))}
+          />
+          <ImageUploader
+            label="Store Banner"
+            single
+            images={form.bannerUrl ? [{ url: form.bannerUrl, position: 0 }] : []}
+            onChange={(imgs) => setForm(f => ({ ...f, bannerUrl: imgs[0]?.url ?? "" }))}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="form-label">Accent Color</label>
@@ -117,18 +137,34 @@ export default function StoreOverview({ store }: { store: Store }) {
         </button>
       </div>
 
+      {/* Banner */}
+      {store.bannerUrl && (
+        <div className="rounded-lg overflow-hidden border border-[var(--color-border)] h-32">
+          <img src={store.bannerUrl} alt={`${store.name} banner`} className="w-full h-full object-cover" />
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-4">
-          <div>
-            <p className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Name</p>
-            <p className="text-sm text-[var(--color-text-primary)]">{store.name}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Slug</p>
-            <p className="text-sm text-[var(--color-text-primary)] font-mono flex items-center gap-1">
-              <Globe size={12} className="text-[var(--color-text-tertiary)]" />
-              /{store.slug}
-            </p>
+          {/* Logo + Name */}
+          <div className="flex items-center gap-3">
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt={`${store.name} logo`}
+                className="h-12 w-12 rounded-lg object-cover border border-[var(--color-border)]" />
+            ) : (
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-white text-lg font-bold"
+                style={{ backgroundColor: store.accentColor ?? "var(--color-accent)" }}
+              >
+                {store.name[0]}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-medium text-[var(--color-text-primary)]">{store.name}</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] font-mono flex items-center gap-1">
+                <Globe size={10} />/{store.slug}
+              </p>
+            </div>
           </div>
           <div>
             <p className="text-[10px] font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wide mb-1">Description</p>
