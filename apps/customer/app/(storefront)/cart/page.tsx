@@ -77,7 +77,7 @@ export default function CartPage() {
                 {/* Image */}
                 <div className="h-20 w-20 shrink-0 rounded-lg bg-[var(--color-bg-muted)] overflow-hidden">
                   {imageUrl ? (
-                    <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+                    <img src={imageUrl} alt={productName} className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center text-2xl">📦</div>
                   )}

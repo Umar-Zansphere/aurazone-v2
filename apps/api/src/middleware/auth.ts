@@ -62,6 +62,66 @@ export function requireRole(...roles: Role[]) {
 }
 
 /**
+ * Returns the list of storeIds a STORE_MANAGER is assigned to.
+ * Returns null for SUPER_ADMIN (meaning "all stores").
+ */
+export async function getManagerStoreIds(userId: string, role: Role): Promise<string[] | null> {
+  if (role === "SUPER_ADMIN") return null; // unrestricted
+  const { prisma } = await import("@aurazone/database");
+  const assignments = await prisma.storeManager.findMany({
+    where: { userId },
+    select: { storeId: true },
+  });
+  return assignments.map((a) => a.storeId);
+}
+
+/**
+ * Middleware factory: verifies the requesting STORE_MANAGER is assigned
+ * to the store identified by `storeId` in params, query, or body.
+ * SUPER_ADMIN always passes.
+ */
+export function requireStoreAccess(storeIdSource: "params" | "query" | "body" = "params", paramName = "storeId") {
+  return async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    if (!request.user) return sendError(reply, "Authentication required", 401);
+    if (request.user.role === "SUPER_ADMIN") return; // bypass
+
+    const source =
+      storeIdSource === "params" ? (request.params as any) :
+      storeIdSource === "query" ? (request.query as any) :
+      (request.body as any);
+
+    const storeId = source?.[paramName];
+    if (!storeId) return; // no storeId to check — downstream will handle
+
+    const allowed = await getManagerStoreIds(request.user.userId, request.user.role);
+    if (allowed && !allowed.includes(storeId)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
+  };
+}
+
+/**
+ * Utility: assert that the given storeId is within the user's allowed stores.
+ * Throws 403 if not. Returns immediately for SUPER_ADMIN.
+ * Usage: `await assertStoreAccess(request.user!, storeId);`
+ */
+export async function assertStoreAccess(user: JwtPayload, storeId: string | null | undefined): Promise<void> {
+  if (user.role === "SUPER_ADMIN") return;
+  // STORE_MANAGER accessing a resource with no storeId should be blocked
+  // (global resources are SUPER_ADMIN only)
+  if (!storeId) {
+    if (user.role === "STORE_MANAGER") {
+      throw Object.assign(new Error("Store managers cannot access global resources"), { statusCode: 403 });
+    }
+    return;
+  }
+  const allowed = await getManagerStoreIds(user.userId, user.role);
+  if (allowed && !allowed.includes(storeId)) {
+    throw Object.assign(new Error("You do not have access to this store"), { statusCode: 403 });
+  }
+}
+
+/**
  * Optional auth — attaches user if token present, but doesn't block.
  */
 export async function optionalAuth(

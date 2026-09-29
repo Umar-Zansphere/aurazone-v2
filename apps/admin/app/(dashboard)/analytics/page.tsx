@@ -49,12 +49,12 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="page-label">System</p>
           <h1 className="page-title">Analytics</h1>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-1 overflow-x-auto">
           {PERIODS.map((p) => (
             <button
               key={p.value}
@@ -288,7 +288,7 @@ function MetricCard({
 }) {
   return (
     <div className="card p-5 group hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">{label}</p>
           <p className="mt-2 text-2xl font-bold text-[var(--color-text-primary)]">

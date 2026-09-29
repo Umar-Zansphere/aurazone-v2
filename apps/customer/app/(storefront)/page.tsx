@@ -26,7 +26,7 @@ export default function HomePage() {
   });
 
   const sections = sectionsData?.data ?? [];
-  const products = (productsData?.data as any)?.products ?? productsData?.data ?? [];
+  const products = Array.isArray(productsData?.data) ? productsData.data : [];
   const stores = storesData?.data ?? [];
   const categories = categoriesData?.data ?? [];
 
@@ -79,22 +79,73 @@ export default function HomePage() {
 
           {/* Stores */}
           {stores.length > 0 && (
-            <div>
-              <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-5">Our Stores</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="pt-4 pb-6">
+              <div className="mb-8">
+                <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight text-[var(--color-text-primary)] font-[var(--font-heading)]">
+                  Explore Our Stores
+                </h2>
+                <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
+                  Discover specialized collections curated just for you.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {stores.map((store: any) => (
                   <a
                     key={store.id}
                     href={`/store/${store.slug}`}
-                    className="group relative overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-5 text-center hover:shadow-lg transition-all hover:-translate-y-1"
+                    className="group relative flex flex-col overflow-hidden rounded-2xl bg-[var(--color-bg-surface)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                   >
-                    <div
-                      className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl text-white text-lg font-bold mb-3 transition-transform group-hover:scale-110"
-                      style={{ backgroundColor: store.accentColor ?? "var(--color-accent)" }}
+                    {/* Banner or Gradient Top */}
+                    <div 
+                      className="h-24 w-full relative overflow-hidden transition-transform duration-700 group-hover:scale-105"
+                      style={
+                        store.bannerUrl 
+                          ? { backgroundImage: `url(${store.bannerUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                          : { background: `linear-gradient(120deg, ${store.accentColor ?? 'var(--color-primary)'}40 0%, ${store.accentColor ?? 'var(--color-primary)'}10 100%)` }
+                      }
                     >
-                      {store.name?.[0] ?? "S"}
+                      {store.bannerUrl && <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors duration-500" />}
                     </div>
-                    <p className="text-sm font-semibold text-[var(--color-text-primary)]">{store.name}</p>
+
+                    {/* Content */}
+                    <div className="flex flex-col flex-1 px-6 pb-6 relative pt-4">
+                      {/* Logo (Overlapping the banner) */}
+                      <div className="absolute -top-10 left-5 rounded-2xl p-1 bg-[var(--color-bg-surface)] shadow-sm">
+                        <div 
+                          className="h-14 w-14 overflow-hidden rounded-xl flex items-center justify-center border border-[var(--color-border)]"
+                        >
+                          {store.logoUrl ? (
+                            <img src={store.logoUrl} alt={store.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-lg font-bold text-white w-full h-full flex items-center justify-center" style={{ backgroundColor: store.accentColor ?? "var(--color-accent)" }}>
+                              {store.name?.[0] ?? "S"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-5 flex-1">
+                        <h3 className="text-lg font-bold text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)] transition-colors">
+                          {store.name}
+                        </h3>
+                        {store.description ? (
+                          <p className="mt-1.5 text-xs text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed">
+                            {store.description}
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 text-xs text-[var(--color-text-tertiary)] italic">
+                            Explore our specialized collection of premium items.
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="mt-5 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-text-primary)] group-hover:text-[var(--color-accent)] transition-colors">
+                        Explore Store 
+                        <span className="transform translate-x-0 group-hover:translate-x-1.5 transition-transform duration-300">
+                          &rarr;
+                        </span>
+                      </div>
+                    </div>
                   </a>
                 ))}
               </div>

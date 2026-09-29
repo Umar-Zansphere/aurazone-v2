@@ -44,6 +44,7 @@ async function main() {
   await prisma.wishlist.deleteMany({});
   await prisma.adminAuditLog.deleteMany({});
   await prisma.storefrontSection.deleteMany({});
+  await prisma.productReview.deleteMany({});
   await prisma.productVariantAttribute.deleteMany({});
   await prisma.productImage.deleteMany({});
   await prisma.productVariant.deleteMany({});
@@ -599,6 +600,50 @@ async function main() {
     ],
   });
   console.log('✓ 8 storefront sections created.\n');
+
+  // ═══════════════════════════════════════════════════════════════
+  //  PRODUCT REVIEWS
+  // ═══════════════════════════════════════════════════════════════
+  console.log('Creating product reviews...');
+  const reviewComments = [
+    'Absolutely love this product! Highly recommended.',
+    'Good quality for the price. Would buy again.',
+    'It is okay, but I expected a bit more based on the photos.',
+    'Fast delivery and excellent packaging.',
+    'Not exactly what I was looking for, but decent.',
+    'Exceeded my expectations! Will recommend to friends.',
+    'Very comfortable and looks great.',
+    'The fit is perfect and the material feels premium.',
+  ];
+
+  let reviewCount = 0;
+  for (let i = 0; i < createdProducts.length; i++) {
+    const product = createdProducts[i];
+    // Add 1 to 4 reviews per product
+    const numReviews = 1 + Math.floor(Math.random() * 4);
+    
+    // Pick random customers
+    const shuffledCustomers = [...customers].sort(() => 0.5 - Math.random());
+    const selectedCustomers = shuffledCustomers.slice(0, numReviews);
+
+    for (const customer of selectedCustomers) {
+      const rating = 3 + Math.floor(Math.random() * 3); // 3, 4, or 5 stars
+      const body = reviewComments[Math.floor(Math.random() * reviewComments.length)];
+      
+      await prisma.productReview.create({
+        data: {
+          productId: product.id,
+          userId: customer.id,
+          rating,
+          body,
+          isApproved: true,
+          createdAt: randomDate(30),
+        },
+      });
+      reviewCount++;
+    }
+  }
+  console.log(`✓ ${reviewCount} product reviews created.\n`);
 
   // ═══════════════════════════════════════════════════════════════
   //  ADMIN AUDIT LOGS

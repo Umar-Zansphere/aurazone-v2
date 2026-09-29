@@ -1,10 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 
 export function Footer() {
+  const { data: storesData } = useQuery({
+    queryKey: ["stores", "footer"],
+    queryFn: () => api.get<any>("/stores?activeOnly=true"),
+  });
+
+  const stores = storesData?.data?.stores ?? [];
+
   return (
-    <footer className="hidden md:block border-t border-[var(--color-border)] bg-[var(--color-bg-surface)] py-12 mt-12">
+    <footer className="border-t border-[var(--color-border)] bg-[var(--color-bg-surface)] pt-12 pb-24 md:pb-12 mt-12">
       <div className="section-container">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           <div>
             <p className="font-bold font-[var(--font-heading)] text-[var(--color-text-primary)] mb-3">AuraZone</p>
             <p className="text-sm text-[var(--color-text-secondary)]">Your one-stop multi-store destination for fashion, home, cosmetics and more.</p>
@@ -12,9 +23,23 @@ export function Footer() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)] mb-3">Stores</p>
             <ul className="space-y-2 text-sm text-[var(--color-text-secondary)]">
-              {["Fashion", "Shoes", "Cosmetics", "Home", "Toys"].map(s => (
-                <li key={s}><Link href={`/store/${s.toLowerCase()}`} className="hover:text-[var(--color-text-primary)] transition-colors">{s}</Link></li>
-              ))}
+              {stores.length > 0 ? (
+                stores.map((s: any) => (
+                  <li key={s.id}>
+                    <Link href={`/store/${s.slug}`} className="hover:text-[var(--color-text-primary)] transition-colors">
+                      {s.name}
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                ["Fashion", "Shoes", "Cosmetics", "Home"].map((s) => (
+                  <li key={s}>
+                    <Link href={`/store/${s.toLowerCase()}`} className="hover:text-[var(--color-text-primary)] transition-colors">
+                      {s}
+                    </Link>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
           <div>

@@ -418,9 +418,9 @@ export default function StoresPage() {
       </div>
 
       {/* Stores Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-x-auto">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
             <thead className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[var(--color-text-secondary)]">
               <tr>
                 <th className="px-6 py-3.5 font-semibold uppercase tracking-wider text-[10px]">Store</th>

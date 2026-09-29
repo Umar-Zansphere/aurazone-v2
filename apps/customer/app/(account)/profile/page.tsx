@@ -107,14 +107,6 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Danger zone */}
-      <div className="rounded-2xl border border-red-100 bg-red-50/40 p-6">
-        <h2 className="text-sm font-semibold text-[var(--color-danger)] mb-1">Danger Zone</h2>
-        <p className="text-xs text-[var(--color-text-secondary)] mb-3">Permanently delete your account and all data.</p>
-        <button className="rounded-[var(--radius-md)] border border-red-200 bg-white px-4 py-2 text-xs font-semibold text-[var(--color-danger)] hover:bg-red-50 transition-colors">
-          Delete Account
-        </button>
-      </div>
     </div>
   );
 }

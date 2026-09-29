@@ -40,6 +40,7 @@ export const env = {
   // Razorpay
   RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID ?? "",
   RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET ?? "",
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET ?? "",
 
   // Frontend URLs (for CORS, emails)
   CUSTOMER_URL: process.env.CUSTOMER_URL ?? "http://localhost:3000",
@@ -47,3 +48,28 @@ export const env = {
 } as const;
 
 export type Env = typeof env;
+
+// ─── Production fail-fast ────────────────────────────────────────────────────
+// In production, all critical secrets MUST be explicitly provided.
+if (env.NODE_ENV === "production") {
+  const required: Array<[string, string]> = [
+    ["DATABASE_URL", env.DATABASE_URL],
+    ["JWT_SECRET", env.JWT_SECRET],
+    ["COOKIE_SECRET", env.COOKIE_SECRET],
+    ["RAZORPAY_KEY_ID", env.RAZORPAY_KEY_ID],
+    ["RAZORPAY_KEY_SECRET", env.RAZORPAY_KEY_SECRET],
+    ["RAZORPAY_WEBHOOK_SECRET", env.RAZORPAY_WEBHOOK_SECRET],
+  ];
+
+  const insecureDefaults = [
+    "dev-jwt-secret-change-in-production",
+    "dev-cookie-secret-change-in-production",
+  ];
+
+  for (const [name, value] of required) {
+    if (!value || insecureDefaults.includes(value)) {
+      console.error(`FATAL: Environment variable ${name} is missing or set to an insecure default.`);
+      process.exit(1);
+    }
+  }
+}

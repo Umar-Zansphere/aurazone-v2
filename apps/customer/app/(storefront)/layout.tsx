@@ -1,6 +1,7 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { Footer } from "@/components/layout/Footer";
+import { CartDrawer } from "@/components/cart/CartDrawer";
 
 export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
       </main>
       <Footer />
       <MobileBottomNav />
+      <CartDrawer />
     </>
   );
 }

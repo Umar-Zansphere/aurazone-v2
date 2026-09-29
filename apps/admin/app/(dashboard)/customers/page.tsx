@@ -45,8 +45,8 @@ export default function CustomersPage() {
           className="flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--color-text-tertiary)]" />
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap min-w-[600px]">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)]">
               <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">Customer</th>

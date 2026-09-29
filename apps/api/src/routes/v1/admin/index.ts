@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { storeSchema, categorySchema, productSchema, attributeTemplateSchema, storefrontSectionSchema } from "@aurazone/validators";
 import { parsePagination } from "@aurazone/utils";
-import { authenticate, requireRole } from "../../../middleware/auth.js";
+import { authenticate, requireRole, getManagerStoreIds, assertStoreAccess } from "../../../middleware/auth.js";
 import { sendSuccess, sendError, sendPaginated } from "../../../middleware/response.js";
 import * as storeService from "../../../services/store.service.js";
 import * as categoryService from "../../../services/category.service.js";
@@ -23,8 +23,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/stores", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
     const { stores, total } = await storeService.listStores({
       activeOnly: false, search: query.search, skip, take,
+      storeIds: allowedStoreIds ?? undefined,
     });
     return sendPaginated(reply, stores, total, Math.floor(skip / take) + 1, take);
   });
@@ -32,6 +34,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/stores/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
+      const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+      if (allowedStoreIds && !allowedStoreIds.includes(id)) {
+        return sendError(reply, "You do not have access to this store", 403);
+      }
       const store = await storeService.getStoreById(id);
       return sendSuccess(reply, store);
     } catch (err: unknown) {
@@ -54,6 +60,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.put("/stores/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    if (allowedStoreIds && !allowedStoreIds.includes(id)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
     const parsed = storeSchema.partial().safeParse(request.body);
     if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
     try {
@@ -94,8 +104,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/categories", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    const storeIdFilter = query.storeId ?? (allowedStoreIds?.length === 1 ? allowedStoreIds[0] : undefined);
+    if (allowedStoreIds && storeIdFilter && !allowedStoreIds.includes(storeIdFilter)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
     const { categories, total } = await categoryService.listCategories({
-      storeId: query.storeId, activeOnly: false, search: query.search, skip, take,
+      storeId: storeIdFilter, storeIds: allowedStoreIds ?? undefined, activeOnly: false, search: query.search, skip, take,
     });
     return sendPaginated(reply, categories, total, Math.floor(skip / take) + 1, take);
   });
@@ -104,6 +119,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     try {
       const category = await categoryService.getCategoryById(id);
+      await assertStoreAccess(request.user!, category.store?.id);
       return sendSuccess(reply, category);
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
@@ -115,6 +131,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = categorySchema.safeParse(request.body);
     if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
     try {
+      await assertStoreAccess(request.user!, parsed.data.storeId);
       const category = await categoryService.createCategory(parsed.data, request.user!.userId);
       return sendSuccess(reply, category, 201);
     } catch (err: unknown) {
@@ -128,6 +145,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = categorySchema.partial().safeParse(request.body);
     if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
     try {
+      const existing = await categoryService.getCategoryById(id);
+      await assertStoreAccess(request.user!, existing.store?.id);
       const category = await categoryService.updateCategory(id, parsed.data, request.user!.userId);
       return sendSuccess(reply, category);
     } catch (err: unknown) {
@@ -139,6 +158,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete("/categories/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
+      const existing = await categoryService.getCategoryById(id);
+      await assertStoreAccess(request.user!, existing.store?.id);
       await categoryService.deleteCategory(id, request.user!.userId);
       return sendSuccess(reply, { message: "Category deleted" });
     } catch (err: unknown) {
@@ -154,8 +175,14 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/products", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    const storeIdFilter = query.storeId ?? (allowedStoreIds?.length === 1 ? allowedStoreIds[0] : undefined);
+    if (allowedStoreIds && storeIdFilter && !allowedStoreIds.includes(storeIdFilter)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
     const { products, total } = await productService.listProducts({
-      storeId: query.storeId, categoryId: query.categoryId,
+      storeId: storeIdFilter, storeIds: allowedStoreIds ?? undefined,
+      categoryId: query.categoryId,
       search: query.search, isActive: undefined, skip, take,
     });
     return sendPaginated(reply, products, total, Math.floor(skip / take) + 1, take);
@@ -165,6 +192,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     try {
       const product = await productService.getProductById(id);
+      await assertStoreAccess(request.user!, (product as any).storeId ?? (product as any).store?.id);
       return sendSuccess(reply, product);
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
@@ -176,6 +204,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const parsed = productSchema.safeParse(request.body);
     if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
     try {
+      await assertStoreAccess(request.user!, parsed.data.storeId);
       const productData = {
           ...parsed.data,
           variants: parsed.data.variants.map((v) => ({
@@ -194,6 +223,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put("/products/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
+      const existing = await productService.getProductById(id);
+      await assertStoreAccess(request.user!, (existing as any).storeId ?? (existing as any).store?.id);
       const product = await productService.updateProduct(id, request.body as any, request.user!.userId);
       return sendSuccess(reply, product);
     } catch (err: unknown) {
@@ -205,12 +236,148 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.delete("/products/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     try {
+      const existing = await productService.getProductById(id);
+      await assertStoreAccess(request.user!, (existing as any).storeId ?? (existing as any).store?.id);
       await productService.deleteProduct(id, request.user!.userId);
       return sendSuccess(reply, { message: "Product deleted" });
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
       return sendError(reply, error.message, error.statusCode ?? 500);
     }
+  });
+
+  // ╔═══════════════════════════════════════════════════════════════╗
+  // ║  COUPONS                                                      ║
+  // ╚═══════════════════════════════════════════════════════════════╝
+
+  fastify.get("/coupons", async (request, reply) => {
+    const query = request.query as Record<string, string>;
+    const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    
+    const where: any = {};
+    if (allowedStoreIds) {
+      where.storeId = query.storeId && allowedStoreIds.includes(query.storeId) 
+        ? query.storeId 
+        : { in: allowedStoreIds };
+    } else if (query.storeId) {
+      where.storeId = query.storeId;
+    }
+    
+    if (query.search) {
+      where.code = { contains: query.search, mode: "insensitive" };
+    }
+
+    const [coupons, total] = await Promise.all([
+      prisma.coupon.findMany({ where, skip, take, orderBy: { createdAt: "desc" } }),
+      prisma.coupon.count({ where })
+    ]);
+    
+    return sendPaginated(reply, coupons, total, Math.floor(skip / take) + 1, take);
+  });
+
+  fastify.post("/coupons", async (request, reply) => {
+    const body = request.body as any;
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    if (allowedStoreIds && body.storeId && !allowedStoreIds.includes(body.storeId)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
+
+    const existing = await prisma.coupon.findUnique({ where: { code: body.code } });
+    if (existing) return sendError(reply, "Coupon code already exists", 400);
+
+    const coupon = await prisma.coupon.create({
+      data: {
+        code: body.code.toUpperCase(),
+        description: body.description,
+        discountType: body.discountType,
+        discountValue: body.discountValue,
+        minOrderValue: body.minOrderValue,
+        maxDiscount: body.maxDiscount,
+        usageLimit: body.usageLimit,
+        startDate: body.startDate ? new Date(body.startDate) : null,
+        endDate: body.endDate ? new Date(body.endDate) : null,
+        isActive: body.isActive ?? true,
+        storeId: body.storeId || null,
+      }
+    });
+
+    await auditLogService.logAction({
+      adminId: request.user!.userId,
+      action: "CREATE",
+      entity: "COUPON",
+      entityId: coupon.id,
+      entityName: coupon.code,
+    });
+
+    return sendSuccess(reply, coupon, 201);
+  });
+
+  fastify.put("/coupons/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as any;
+    
+    const existing = await prisma.coupon.findUnique({ where: { id } });
+    if (!existing) return sendError(reply, "Coupon not found", 404);
+
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    if (allowedStoreIds && existing.storeId && !allowedStoreIds.includes(existing.storeId)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
+    if (allowedStoreIds && body.storeId && !allowedStoreIds.includes(body.storeId)) {
+      return sendError(reply, "You cannot reassign to this store", 403);
+    }
+
+    const coupon = await prisma.coupon.update({
+      where: { id },
+      data: {
+        code: body.code?.toUpperCase(),
+        description: body.description,
+        discountType: body.discountType,
+        discountValue: body.discountValue,
+        minOrderValue: body.minOrderValue,
+        maxDiscount: body.maxDiscount,
+        usageLimit: body.usageLimit,
+        startDate: body.startDate !== undefined ? (body.startDate ? new Date(body.startDate) : null) : undefined,
+        endDate: body.endDate !== undefined ? (body.endDate ? new Date(body.endDate) : null) : undefined,
+        isActive: body.isActive,
+        storeId: body.storeId !== undefined ? body.storeId : undefined,
+      }
+    });
+
+    await auditLogService.logAction({
+      adminId: request.user!.userId,
+      action: "UPDATE",
+      entity: "COUPON",
+      entityId: coupon.id,
+      entityName: coupon.code,
+    });
+
+    return sendSuccess(reply, coupon);
+  });
+
+  fastify.delete("/coupons/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    
+    const existing = await prisma.coupon.findUnique({ where: { id } });
+    if (!existing) return sendError(reply, "Coupon not found", 404);
+
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    if (allowedStoreIds && existing.storeId && !allowedStoreIds.includes(existing.storeId)) {
+      return sendError(reply, "You do not have access to this store", 403);
+    }
+
+    await prisma.coupon.delete({ where: { id } });
+
+    await auditLogService.logAction({
+      adminId: request.user!.userId,
+      action: "DELETE",
+      entity: "COUPON",
+      entityId: id,
+      entityName: existing.code,
+    });
+
+    return sendSuccess(reply, { message: "Coupon deleted" });
   });
 
   // ╔═══════════════════════════════════════════════════════════════╗
@@ -297,6 +464,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/orders", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
 
     const where: any = {};
     if (query.status) where.status = query.status;
@@ -305,6 +473,10 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         { orderNumber: { contains: query.search, mode: "insensitive" } },
         { user: { email: { contains: query.search, mode: "insensitive" } } },
       ];
+    }
+    // Scope to orders containing items from the manager's stores
+    if (allowedStoreIds) {
+      where.items = { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } };
     }
 
     const [orders, total] = await Promise.all([
@@ -326,6 +498,19 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     try {
       const order = await orderService.getOrderById(id);
+      const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+      if (allowedStoreIds) {
+        const orderStoreIds = (order.items as any[]).map((i: any) => i.variant?.product?.storeId).filter(Boolean);
+        if (!orderStoreIds.some((sid: string) => allowedStoreIds.includes(sid))) {
+          return sendError(reply, "You do not have access to this order", 403);
+        }
+        // Filter items to only those belonging to the manager's stores
+        const filteredItems = (order.items as any[]).filter((i: any) => {
+          const storeId = i.variant?.product?.storeId;
+          return storeId && allowedStoreIds.includes(storeId);
+        });
+        return sendSuccess(reply, { ...order, items: filteredItems });
+      }
       return sendSuccess(reply, order);
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
@@ -340,8 +525,21 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     if (!status) return sendError(reply, "status is required", 400);
 
     try {
-      const order = await orderService.updateOrderStatus(id, status, request.user!.userId);
-      return sendSuccess(reply, order);
+      const order = await orderService.getOrderById(id);
+      const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+
+      if (allowedStoreIds) {
+        const orderStoreIds = (order.items as any[]).map((i: any) => i.variant?.product?.storeId).filter(Boolean);
+        
+        // A manager must have access to ALL stores represented in the order to change its global status
+        const hasAccessToAll = orderStoreIds.every((sid: string) => allowedStoreIds.includes(sid));
+        if (!hasAccessToAll) {
+          return sendError(reply, "You can only update status for orders containing exclusively your store's items", 403);
+        }
+      }
+
+      const updatedOrder = await orderService.updateOrderStatus(id, status, request.user!.userId);
+      return sendSuccess(reply, updatedOrder);
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
       return sendError(reply, error.message, error.statusCode ?? 500);
@@ -354,9 +552,17 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
   fastify.get("/storefront", async (request, reply) => {
     const query = request.query as Record<string, string>;
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
     const where: any = { deletedAt: null };
     if (query.page) where.page = query.page;
-    if (query.storeId) where.storeId = query.storeId;
+    if (query.storeId) {
+      if (allowedStoreIds && !allowedStoreIds.includes(query.storeId)) {
+        return sendError(reply, "You do not have access to this store", 403);
+      }
+      where.storeId = query.storeId;
+    } else if (allowedStoreIds) {
+      where.storeId = { in: allowedStoreIds };
+    }
 
     const sections = await prisma.storefrontSection.findMany({
       where,
@@ -368,6 +574,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post("/storefront", async (request, reply) => {
     const parsed = storefrontSectionSchema.safeParse(request.body);
     if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
+
+    await assertStoreAccess(request.user!, parsed.data.storeId);
+
+    // STORE_MANAGER must specify a storeId — they cannot create global content
+    if (request.user!.role === "STORE_MANAGER" && !parsed.data.storeId) {
+      return sendError(reply, "Store managers must specify a storeId for storefront content", 400);
+    }
 
     const section = await prisma.storefrontSection.create({
       data: {
@@ -398,6 +611,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.put("/storefront/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = request.body as Record<string, unknown>;
+    const existing = await prisma.storefrontSection.findUnique({ where: { id } });
+    if (!existing) return sendError(reply, "Section not found", 404);
+    await assertStoreAccess(request.user!, existing.storeId);
     const section = await prisma.storefrontSection.update({
       where: { id },
       data: {
@@ -479,6 +695,8 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const section = await prisma.storefrontSection.findUnique({ where: { id } });
     if (!section) return sendError(reply, "Section not found", 404);
 
+    await assertStoreAccess(request.user!, section.storeId);
+
     // Soft delete
     await prisma.storefrontSection.update({
       where: { id },
@@ -500,16 +718,22 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   // ║  DASHBOARD STATS                                              ║
   // ╚═══════════════════════════════════════════════════════════════╝
 
-  fastify.get("/dashboard", async (_request, reply) => {
+  fastify.get("/dashboard", async (request, reply) => {
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    const storeWhere = allowedStoreIds ? { id: { in: allowedStoreIds } } : {};
+    const productWhere = allowedStoreIds ? { storeId: { in: allowedStoreIds } } : {};
+    const orderWhere = allowedStoreIds ? { items: { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } } } : {};
+
     const [
       totalStores, totalProducts, totalOrders, totalUsers,
       recentOrders, ordersByStatus,
     ] = await Promise.all([
-      prisma.store.count({ where: { isActive: true, deletedAt: null } }),
-      prisma.product.count({ where: { isActive: true, deletedAt: null } }),
-      prisma.order.count(),
+      prisma.store.count({ where: { isActive: true, deletedAt: null, ...storeWhere } }),
+      prisma.product.count({ where: { isActive: true, deletedAt: null, ...productWhere } }),
+      prisma.order.count({ where: orderWhere }),
       prisma.user.count({ where: { role: "CUSTOMER" } }),
       prisma.order.findMany({
+        where: orderWhere,
         take: 10, orderBy: { createdAt: "desc" },
         include: {
           user: { select: { fullName: true, email: true } },
@@ -518,6 +742,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       }),
       prisma.order.groupBy({
         by: ["status"],
+        where: orderWhere,
         _count: { id: true },
       }),
     ]);
@@ -539,10 +764,16 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/inventory", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
 
     const where: any = {};
+    if (allowedStoreIds) {
+      where.variant = { product: { storeId: { in: allowedStoreIds } } };
+    }
+    
     if (query.search) {
       where.variant = {
+        ...where.variant,
         OR: [
           { sku: { contains: query.search, mode: "insensitive" } },
           { product: { name: { contains: query.search, mode: "insensitive" } } },
@@ -584,8 +815,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     if (quantity === undefined || quantity === null) return sendError(reply, "quantity is required", 400);
 
     try {
-      const inv = await prisma.inventory.findUnique({ where: { variantId } });
+      const inv = await prisma.inventory.findUnique({ 
+        where: { variantId },
+        include: { variant: { include: { product: true } } }
+      });
       if (!inv) return sendError(reply, "Inventory not found", 404);
+      
+      await assertStoreAccess(request.user!, inv.variant.product.storeId);
 
       const updated = await prisma.$transaction(async (tx) => {
         const result = await tx.inventory.update({
@@ -628,13 +864,18 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/shipments", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
 
     const where: any = { deletedAt: null };
+    if (allowedStoreIds) {
+      where.order = { items: { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } } };
+    }
+    
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [
         { trackingNumber: { contains: query.search, mode: "insensitive" } },
-        { order: { orderNumber: { contains: query.search, mode: "insensitive" } } },
+        { order: { ...where.order, orderNumber: { contains: query.search, mode: "insensitive" } } },
       ];
     }
 
@@ -666,8 +907,19 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const body = request.body as Record<string, unknown>;
 
     try {
-      const existing = await prisma.orderShipment.findUnique({ where: { id } });
+      const existing = await prisma.orderShipment.findUnique({ 
+        where: { id },
+        include: { order: { include: { items: { include: { variant: { include: { product: true } } } } } } }
+      });
       if (!existing) return sendError(reply, "Shipment not found", 404);
+
+      const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+      if (allowedStoreIds) {
+        const orderStoreIds = existing.order.items.map(i => i.variant?.product?.storeId).filter(Boolean);
+        if (!orderStoreIds.some(sid => allowedStoreIds.includes(sid))) {
+          return sendError(reply, "You do not have access to this shipment", 403);
+        }
+      }
 
       const data: any = {};
       if (body.status !== undefined) data.status = body.status;
@@ -793,8 +1045,13 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/customers", async (request, reply) => {
     const query = request.query as Record<string, string>;
     const { skip, take } = parsePagination(query.skip, query.take);
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
 
     const where: any = { role: "CUSTOMER" };
+    if (allowedStoreIds) {
+      where.orders = { some: { items: { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } } } };
+    }
+    
     if (query.search) {
       where.OR = [
         { fullName: { contains: query.search, mode: "insensitive" } },
@@ -838,6 +1095,9 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
     const since = new Date();
     since.setDate(since.getDate() - daysBack);
 
+    const allowedStoreIds = await getManagerStoreIds(request.user!.userId, request.user!.role);
+    const orderWhere = allowedStoreIds ? { items: { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } } } : {};
+
     const [
       totalRevenue,
       ordersByStatus,
@@ -849,7 +1109,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       // Total revenue (delivered/success only)
       prisma.order.aggregate({
         _sum: { totalAmount: true },
-        where: { status: { in: ["DELIVERED", "SUCCESS"] }, createdAt: { gte: since } },
+        where: { status: { in: ["DELIVERED", "SUCCESS"] }, createdAt: { gte: since }, ...orderWhere },
       }),
 
       // Orders by status
@@ -857,17 +1117,22 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
         by: ["status"],
         _count: { id: true },
         _sum: { totalAmount: true },
-        where: { createdAt: { gte: since } },
+        where: { createdAt: { gte: since }, ...orderWhere },
       }),
 
       // Revenue by day (last N days)
       prisma.$queryRawUnsafe<Array<{ day: string; revenue: number; orders: number }>>(
-        `SELECT DATE(created_at) as day,
-                COALESCE(SUM(total_amount), 0)::float as revenue,
-                COUNT(*)::int as orders
-         FROM "Order"
-         WHERE created_at >= $1
-         GROUP BY DATE(created_at)
+        `SELECT DATE(o.created_at) as day,
+                COALESCE(SUM(o.total_amount), 0)::float as revenue,
+                COUNT(DISTINCT o.id)::int as orders
+         FROM "Order" o
+         ${allowedStoreIds && allowedStoreIds.length > 0 ? `
+           JOIN "OrderItem" oi ON o.id = oi.order_id
+           JOIN "ProductVariant" pv ON oi.variant_id = pv.id
+           JOIN "Product" p ON pv.product_id = p.id
+           WHERE o.created_at >= $1 AND p.store_id IN (${allowedStoreIds.map(id => `'${id}'`).join(',')})
+         ` : 'WHERE o.created_at >= $1'}
+         GROUP BY DATE(o.created_at)
          ORDER BY day ASC`,
         since
       ),
@@ -875,6 +1140,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       // Top products by order count
       prisma.orderItem.groupBy({
         by: ["productName", "storeName"],
+        where: allowedStoreIds ? { variant: { product: { storeId: { in: allowedStoreIds } } } } : undefined,
         _count: { id: true },
         _sum: { subtotal: true },
         orderBy: { _count: { id: "desc" } },
@@ -884,6 +1150,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       // Revenue per store
       prisma.orderItem.groupBy({
         by: ["storeName"],
+        where: allowedStoreIds ? { variant: { product: { storeId: { in: allowedStoreIds } } } } : undefined,
         _count: { id: true },
         _sum: { subtotal: true },
         orderBy: { _sum: { subtotal: "desc" } },
@@ -892,7 +1159,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Customer growth
       prisma.user.count({
-        where: { role: "CUSTOMER", createdAt: { gte: since } },
+        where: { role: "CUSTOMER", createdAt: { gte: since }, ...(allowedStoreIds ? { orders: { some: { items: { some: { variant: { product: { storeId: { in: allowedStoreIds } } } } } } } } : {}) },
       }),
     ]);
 

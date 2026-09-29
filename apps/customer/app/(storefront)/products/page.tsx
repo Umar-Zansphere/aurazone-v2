@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { ProductCard } from "@/components/product/ProductCard";
-import { Search, SlidersHorizontal, ChevronDown, X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 
-export default function ProductsPage() {
+function ProductsContent() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("categoryId") ?? "";
   const initialStore = searchParams.get("storeId") ?? "";
@@ -40,16 +40,14 @@ export default function ProductsPage() {
     queryFn: () => api.get<any[]>("/categories"),
   });
 
-  const products = (data?.data as any)?.products ?? [];
-  const total = (data?.data as any)?.total ?? 0;
+  const products = Array.isArray(data?.data) ? data.data : [];
+  const total = (data as any)?.meta?.total ?? 0;
   const stores = storesData?.data ?? [];
   const categories = categoriesData?.data ?? [];
-
   const activeFilterCount = [storeId, categoryId].filter(Boolean).length;
 
   return (
     <div className="section-container py-6">
-      {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">Products</h1>
@@ -61,7 +59,6 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Search + Filter bar */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 py-2.5 flex-1 min-w-[200px] max-w-md">
           <Search size={16} className="text-[var(--color-text-tertiary)]" />
@@ -105,7 +102,6 @@ export default function ProductsPage() {
         </select>
       </div>
 
-      {/* Filters panel */}
       {showFilters && (
         <div className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 flex flex-wrap gap-4 items-end">
           <div className="min-w-[180px]">
@@ -133,7 +129,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Product Grid */}
       {isLoading ? (
         <div className="product-grid">
           {Array.from({ length: 12 }).map((_, i) => (
@@ -159,5 +154,28 @@ export default function ProductsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="section-container py-6">
+          <div className="h-8 w-48 shimmer rounded mb-6" />
+          <div className="product-grid">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <div className="aspect-[3/4] shimmer rounded-xl" />
+                <div className="h-3 w-3/4 shimmer rounded" />
+                <div className="h-3 w-1/2 shimmer rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      }
+    >
+      <ProductsContent />
+    </Suspense>
   );
 }

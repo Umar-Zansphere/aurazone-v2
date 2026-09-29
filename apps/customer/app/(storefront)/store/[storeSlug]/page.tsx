@@ -24,7 +24,7 @@ export default function StorePage() {
     enabled: !!store?.id,
   });
 
-  const products = (productsData?.data as any)?.products ?? [];
+  const products = Array.isArray(productsData?.data) ? productsData.data : [];
 
   if (storeLoading) {
     return (

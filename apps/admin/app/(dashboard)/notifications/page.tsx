@@ -82,7 +82,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="page-label">System</p>
           <h1 className="page-title">Notifications</h1>
@@ -102,7 +102,7 @@ export default function NotificationsPage() {
 
       {/* Filter */}
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-1">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-1 overflow-x-auto">
           <button
             onClick={() => setShowUnread(false)}
             className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors ${!showUnread ? "bg-[var(--color-primary)] text-white" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-muted)]"}`}

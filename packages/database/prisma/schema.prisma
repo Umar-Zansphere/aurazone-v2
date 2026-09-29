@@ -54,6 +54,7 @@ enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
+  REFUNDED
 }
 
 enum PaymentGateway {
@@ -93,6 +94,11 @@ enum AttributeFieldType {
   COLOR_PICKER
   BOOLEAN
   MEDIA
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
 }
 
 enum SectionType {
@@ -142,6 +148,7 @@ model User {
   pushSubscriptions       PushSubscription[]
   notificationHistory     NotificationHistory[]
   notificationPreferences NotificationPreferences?
+  reviews                 ProductReview[]
 
   @@index([email])
   @@index([phone])
@@ -238,6 +245,7 @@ model Store {
   attributeTemplates  AttributeTemplate[]
   managers            StoreManager[]
   storefrontSections  StorefrontSection[]
+  coupons             Coupon[]
 
   @@index([slug])
   @@index([isActive, sortOrder])
@@ -334,6 +342,7 @@ model Product {
   variants      ProductVariant[]
   cartItems     CartItem[]
   wishlistItems WishlistItem[]
+  reviews       ProductReview[]
 
   @@index([storeId])
   @@index([categoryId])
@@ -358,11 +367,12 @@ model ProductVariant {
 
   attributes    ProductVariantAttribute[]
   images        ProductImage[]
-  inventoryLogs InventoryLog[]
-  cartItems     CartItem[]
-  wishlistItems WishlistItem[]
-  orderItems    OrderItem[]
-  inventory     Inventory?
+  inventoryLogs    InventoryLog[]
+  cartItems        CartItem[]
+  wishlistItems    WishlistItem[]
+  orderItems       OrderItem[]
+  inventory        Inventory?
+  reservations     InventoryReservation[]
 
   @@index([productId])
   @@index([isAvailable])
@@ -405,6 +415,20 @@ model Inventory {
   @@index([quantity])
 }
 
+model InventoryReservation {
+  id         String         @id @default(uuid())
+  variantId  String         @map("variant_id")
+  variant    ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  cartItemId String         @unique @map("cart_item_id")
+  cartItem   CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  quantity   Int
+  expiresAt  DateTime       @map("expires_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([variantId])
+  @@index([expiresAt])
+}
+
 model InventoryLog {
   id          String           @id @default(uuid())
   variantId   String           @map("variant_id")
@@ -419,6 +443,25 @@ model InventoryLog {
 
   @@index([variantId])
   @@index([orderId])
+}
+
+// ─── Reviews ─────────────────────────────────────────────────────────────────
+
+model ProductReview {
+  id        String   @id @default(uuid())
+  productId String   @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  body      String?  @db.Text
+  isApproved Boolean @default(true) @map("is_approved")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([productId, userId])
+  @@index([productId])
+  @@index([userId])
 }
 
 // ─── Cart & Wishlist ──────────────────────────────────────────────────────────
@@ -451,8 +494,9 @@ model CartItem {
   variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
   quantity  Int
   unitPrice Decimal        @map("unit_price") @db.Decimal(10, 2)
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  reservation  InventoryReservation?
 
   @@index([cartId])
   @@index([productId])
@@ -505,6 +549,9 @@ model Order {
   razorpayOrderId   String?        @unique @map("razorpay_order_id")
   razorpayPaymentId String?        @unique @map("razorpay_payment_id")
   totalAmount       Decimal        @map("total_amount") @db.Decimal(12, 2)
+  couponId          String?        @map("coupon_id")
+  coupon            Coupon?        @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  discountAmount    Decimal        @default(0) @map("discount_amount") @db.Decimal(12, 2)
   notes             String?
   deletedAt         DateTime?      @map("deleted_at")
   deleteReason      String?        @map("delete_reason")
@@ -589,7 +636,6 @@ model Payment {
   paymentLogs PaymentLog[]
 
   @@unique([gateway, gatewayPaymentId])
-  @@unique([gateway, gatewayOrderId])
   @@index([orderId])
   @@index([status])
   @@index([createdAt])
@@ -801,4 +847,31 @@ model NotificationPreferences {
   otherEvents       Boolean  @default(true) @map("other_events")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
+}
+
+// ─── Coupons & Promotions ──────────────────────────────────────────────────
+
+model Coupon {
+  id              String         @id @default(uuid())
+  code            String         @unique
+  description     String?
+  discountType    DiscountType   @map("discount_type")
+  discountValue   Decimal        @db.Decimal(10, 2) @map("discount_value")
+  minOrderValue   Decimal?       @db.Decimal(10, 2) @map("min_order_value")
+  maxDiscount     Decimal?       @db.Decimal(10, 2) @map("max_discount")
+  usageLimit      Int?           @map("usage_limit")
+  usedCount       Int            @default(0) @map("used_count")
+  startDate       DateTime?      @map("start_date")
+  endDate         DateTime?      @map("end_date")
+  isActive        Boolean        @default(true) @map("is_active")
+  storeId         String?        @map("store_id")
+  store           Store?         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime?      @updatedAt @map("updated_at")
+
+  orders          Order[]
+
+  @@index([code])
+  @@index([storeId])
+  @@index([isActive])
 }

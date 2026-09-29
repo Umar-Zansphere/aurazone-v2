@@ -4,6 +4,7 @@ import { logAction } from "./auditLog.service.js";
 
 export async function listProducts(opts?: {
   storeId?: string;
+  storeIds?: string[];
   categoryId?: string;
   search?: string;
   minPrice?: number;
@@ -20,8 +21,19 @@ export async function listProducts(opts?: {
   if (!opts?.includeDeleted) where.deletedAt = null;
 
   if (opts?.storeId) where.storeId = opts.storeId;
+  else if (opts?.storeIds) where.storeId = { in: opts.storeIds };
   if (opts?.categoryId) where.categoryId = opts.categoryId;
   if (opts?.isActive !== undefined) where.isActive = opts.isActive;
+  if (opts?.minPrice !== undefined || opts?.maxPrice !== undefined) {
+    where.variants = {
+      some: {
+        isAvailable: true,
+        deletedAt: null,
+        ...(opts?.minPrice !== undefined && { price: { gte: opts.minPrice } }),
+        ...(opts?.maxPrice !== undefined && { price: { lte: opts.maxPrice } }),
+      },
+    };
+  }
   if (opts?.search) {
     where.OR = [
       { name: { contains: opts.search, mode: "insensitive" } },
@@ -133,6 +145,9 @@ export async function createProduct(
   ]);
   if (!store) throw Object.assign(new Error("Store not found"), { statusCode: 404 });
   if (!category) throw Object.assign(new Error("Category not found"), { statusCode: 404 });
+  if (category.storeId !== data.storeId) {
+    throw Object.assign(new Error("Category does not belong to the selected store"), { statusCode: 400 });
+  }
 
   const slug = data.slug ?? slugify(data.name);
   const existing = await prisma.product.findUnique({ where: { slug } });
@@ -277,4 +292,51 @@ export async function restoreProduct(id: string, adminId?: string): Promise<Prod
   }
 
   return restored;
+}
+
+export async function getProductReviews(slug: string) {
+  const product = await prisma.product.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!product) throw Object.assign(new Error("Product not found"), { statusCode: 404 });
+
+  const reviews = await prisma.productReview.findMany({
+    where: { productId: product.id, isApproved: true },
+    orderBy: { createdAt: "desc" },
+    include: {
+      user: { select: { id: true, fullName: true, avatar: true } },
+    },
+  });
+  return reviews;
+}
+
+export async function addProductReview(slug: string, userId: string, data: { rating: number; body?: string }) {
+  if (data.rating < 1 || data.rating > 5) {
+    throw Object.assign(new Error("Rating must be between 1 and 5"), { statusCode: 400 });
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { slug },
+    select: { id: true },
+  });
+  if (!product) throw Object.assign(new Error("Product not found"), { statusCode: 404 });
+
+  const existingReview = await prisma.productReview.findUnique({
+    where: { productId_userId: { productId: product.id, userId } },
+  });
+  if (existingReview) {
+    throw Object.assign(new Error("You have already reviewed this product"), { statusCode: 409 });
+  }
+
+  const review = await prisma.productReview.create({
+    data: {
+      productId: product.id,
+      userId,
+      rating: data.rating,
+      body: data.body,
+    },
+  });
+
+  return review;
 }

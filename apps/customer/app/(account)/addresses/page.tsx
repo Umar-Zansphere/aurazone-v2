@@ -42,7 +42,7 @@ export default function AddressesPage() {
       {showForm && (
         <form onSubmit={(e) => { e.preventDefault(); createMutation.mutate(form); }}
           className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-surface)] p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input type="text" placeholder="Full Name" required value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm outline-none" />
@@ -56,7 +56,7 @@ export default function AddressesPage() {
           <input type="text" placeholder="Address Line 2 (optional)" value={form.addressLine2}
             onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
             className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm outline-none" />
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input type="text" placeholder="City" required value={form.city}
               onChange={(e) => setForm({ ...form, city: e.target.value })}
               className="rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm outline-none" />

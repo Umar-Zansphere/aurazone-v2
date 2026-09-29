@@ -9,10 +9,66 @@ function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+async function mergeGuestCart(userId: string, guestSessionId?: string) {
+  if (!guestSessionId) return;
+
+  const guestCart = await prisma.cart.findFirst({
+    where: { sessionId: guestSessionId, status: "ACTIVE" },
+    include: { items: true }
+  });
+
+  if (!guestCart || guestCart.items.length === 0) return;
+
+  let userCart = await prisma.cart.findFirst({
+    where: { userId, status: "ACTIVE" }
+  });
+
+  if (!userCart) {
+    userCart = await prisma.cart.create({ data: { userId } });
+  }
+
+  // Merge items
+  for (const item of guestCart.items) {
+    const existing = await prisma.cartItem.findFirst({
+      where: { cartId: userCart.id, variantId: item.variantId }
+    });
+
+    if (existing) {
+      await prisma.cartItem.update({
+        where: { id: existing.id },
+        data: { quantity: existing.quantity + item.quantity }
+      });
+    } else {
+      await prisma.cartItem.create({
+        data: {
+          cartId: userCart.id,
+          productId: item.productId,
+          variantId: item.variantId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice
+        }
+      });
+    }
+  }
+
+  // Clean up guest cart
+  await prisma.cartItem.deleteMany({ where: { cartId: guestCart.id } });
+  await prisma.cart.delete({ where: { id: guestCart.id } });
+}
+
+async function mergeGuestOrders(userId: string, guestSessionId?: string) {
+  if (!guestSessionId) return;
+  await prisma.order.updateMany({
+    where: { sessionId: guestSessionId, userId: null },
+    data: { userId }
+  });
+}
+
 export async function signupWithEmail(
   email: string,
   password: string,
-  fullName?: string
+  fullName?: string,
+  guestSessionId?: string
 ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
@@ -26,6 +82,9 @@ export async function signupWithEmail(
 
   await prisma.cart.create({ data: { userId: user.id } });
   await prisma.wishlist.create({ data: { userId: user.id } });
+
+  await mergeGuestCart(user.id, guestSessionId);
+  await mergeGuestOrders(user.id, guestSessionId);
 
   const tokens = generateTokens({ userId: user.id, email: user.email!, role: user.role });
 
@@ -44,7 +103,8 @@ export async function signupWithEmail(
 
 export async function loginWithEmail(
   email: string,
-  password: string
+  password: string,
+  guestSessionId?: string
 ): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.password) {
@@ -55,6 +115,9 @@ export async function loginWithEmail(
   if (!valid) {
     throw Object.assign(new Error("Invalid email or password"), { statusCode: 401 });
   }
+
+  await mergeGuestCart(user.id, guestSessionId);
+  await mergeGuestOrders(user.id, guestSessionId);
 
   const tokens = generateTokens({ userId: user.id, email: user.email!, role: user.role });
 

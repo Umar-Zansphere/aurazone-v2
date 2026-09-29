@@ -88,7 +88,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => (
           <div key={card.label} className="card p-5 group hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-medium text-[var(--color-text-tertiary)] uppercase tracking-wider">
                   {card.label}

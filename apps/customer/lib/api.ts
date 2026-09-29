@@ -21,10 +21,16 @@ class ApiClient {
     options: RequestInit = {},
     _isRetry = false
   ): Promise<ApiResponse<T>> {
+    const guestSession = typeof window !== "undefined" ? localStorage.getItem("guest_session_id") : null;
+    
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       credentials: "include",
-      headers: { "Content-Type": "application/json", ...options.headers },
+      headers: { 
+        "Content-Type": "application/json", 
+        ...(guestSession ? { "x-guest-session": guestSession } : {}),
+        ...options.headers 
+      },
     });
 
     // If 401 and not already a retry, attempt token refresh

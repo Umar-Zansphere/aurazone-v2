@@ -61,7 +61,7 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="page-label">Catalog</p>
           <h1 className="page-title">Products</h1>
@@ -73,8 +73,8 @@ export default function ProductsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-3 py-2 w-72">
+      <div className="flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-surface)] px-3 py-2 w-full md:w-72">
           <Search size={14} className="text-[var(--color-text-tertiary)]" />
           <input
             type="text"
@@ -97,8 +97,8 @@ export default function ProductsPage() {
       </div>
 
       {/* Products Table */}
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm whitespace-nowrap min-w-[600px]">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)]">
               <th className="px-5 py-3 text-left text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">

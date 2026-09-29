@@ -7,6 +7,7 @@ export async function listStores(opts?: {
   activeOnly?: boolean;
   search?: string;
   includeDeleted?: boolean;
+  storeIds?: string[];
   skip?: number;
   take?: number;
 }): Promise<{ stores: Store[]; total: number }> {
@@ -16,6 +17,7 @@ export async function listStores(opts?: {
   if (!opts?.includeDeleted) where.deletedAt = null;
 
   if (opts?.activeOnly) where.isActive = true;
+  if (opts?.storeIds) where.id = { in: opts.storeIds };
   if (opts?.search) {
     where.OR = [
       { name: { contains: opts.search, mode: "insensitive" } },

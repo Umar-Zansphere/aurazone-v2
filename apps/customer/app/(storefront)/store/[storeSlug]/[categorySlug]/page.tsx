@@ -18,8 +18,8 @@ export default function StoreCategoryPage() {
   });
 
   const { data: categoryData } = useQuery({
-    queryKey: ["category", categorySlug],
-    queryFn: () => api.get<any>(`/categories/${categorySlug}`),
+    queryKey: ["category", storeSlug, categorySlug],
+    queryFn: () => api.get<any>(`/categories/${storeSlug}/${categorySlug}`),
   });
 
   const store = storeData?.data;
@@ -31,7 +31,7 @@ export default function StoreCategoryPage() {
     enabled: !!category?.id,
   });
 
-  const products = (productsData?.data as any)?.products ?? [];
+  const products = Array.isArray(productsData?.data) ? productsData.data : [];
 
   return (
     <div className="section-container py-6">

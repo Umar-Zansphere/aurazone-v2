@@ -18,6 +18,23 @@ const buildServer = async () => {
     },
   });
 
+  // ─── Raw Body for Webhook Verification ─────────────────────────
+  // Capture the raw body bytes before Fastify's JSON parser runs.
+  // Routes that need it access `(request as any).rawBody`.
+  app.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    (req, body, done) => {
+      (req as any).rawBody = body;
+      try {
+        const json = JSON.parse(body.toString());
+        done(null, json);
+      } catch (err: any) {
+        done(err, undefined);
+      }
+    }
+  );
+
   // ─── Global Error Handler ─────────────────────────────────────
   app.setErrorHandler(globalErrorHandler);
 

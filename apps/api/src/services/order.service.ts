@@ -4,12 +4,25 @@ import { generateOrderNumber } from "@aurazone/utils";
 import crypto from "crypto";
 
 export async function createOrderFromCart(
-  userId: string,
-  addressId: string,
-  paymentMethod: "RAZORPAY" | "COD"
+  userId: string | undefined,
+  sessionId: string | undefined,
+  addressInput: string | {
+    name: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  },
+  paymentMethod: "RAZORPAY" | "COD",
+  guestEmail?: string,
+  couponCode?: string
 ) {
+  const where = userId ? { userId, status: "ACTIVE" as const } : { sessionId, status: "ACTIVE" as const };
   const cart = await prisma.cart.findFirst({
-    where: { userId, status: "ACTIVE" },
+    where,
     include: {
       items: {
         include: {
@@ -30,8 +43,23 @@ export async function createOrderFromCart(
     throw Object.assign(new Error("Cart is empty"), { statusCode: 400 });
   }
 
-  const address = await prisma.address.findFirst({ where: { id: addressId, userId } });
-  if (!address) throw Object.assign(new Error("Address not found"), { statusCode: 404 });
+  let addressData;
+  if (typeof addressInput === "string") {
+    const address = await prisma.address.findFirst({ where: { id: addressInput, userId } });
+    if (!address) throw Object.assign(new Error("Address not found"), { statusCode: 404 });
+    addressData = {
+      name: address.name,
+      phone: address.phone,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2 ?? null,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      country: address.country,
+    };
+  } else {
+    addressData = addressInput;
+  }
 
   for (const item of cart.items) {
     const stock = item.variant.inventory?.quantity ?? 0;
@@ -47,6 +75,46 @@ export async function createOrderFromCart(
   for (const item of cart.items) {
     totalAmount += item.unitPrice.toNumber() * item.quantity;
   }
+
+  let discountAmount = 0;
+  let appliedCouponId = null;
+
+  if (couponCode) {
+    const coupon = await prisma.coupon.findUnique({ where: { code: couponCode.toUpperCase() } });
+    if (!coupon || !coupon.isActive) {
+      throw Object.assign(new Error("Invalid or inactive coupon code"), { statusCode: 400 });
+    }
+    const now = new Date();
+    if (coupon.startDate && now < coupon.startDate) throw Object.assign(new Error("Coupon not active yet"), { statusCode: 400 });
+    if (coupon.endDate && now > coupon.endDate) throw Object.assign(new Error("Coupon expired"), { statusCode: 400 });
+    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) throw Object.assign(new Error("Coupon limit reached"), { statusCode: 400 });
+    if (coupon.minOrderValue && totalAmount < coupon.minOrderValue.toNumber()) throw Object.assign(new Error(`Minimum order value of ${coupon.minOrderValue} required`), { statusCode: 400 });
+
+    if (coupon.storeId) {
+      // Ensure all items in the cart belong to the store this coupon is for
+      const cartStoreIds = new Set(cart.items.map((i) => i.variant.product.storeId));
+      if (cartStoreIds.size > 1 || !cartStoreIds.has(coupon.storeId)) {
+        throw Object.assign(new Error("This coupon is only valid for items from a specific store"), { statusCode: 400 });
+      }
+    }
+
+    if (coupon.discountType === "PERCENTAGE") {
+      discountAmount = totalAmount * (coupon.discountValue.toNumber() / 100);
+      if (coupon.maxDiscount) {
+        discountAmount = Math.min(discountAmount, coupon.maxDiscount.toNumber());
+      }
+    } else {
+      discountAmount = coupon.discountValue.toNumber();
+    }
+    
+    // Cap discount at total amount
+    discountAmount = Math.min(discountAmount, totalAmount);
+    totalAmount -= discountAmount;
+    appliedCouponId = coupon.id;
+  }
+
+  const deliveryFee = totalAmount >= 499 ? 0 : 49;
+  totalAmount += deliveryFee;
 
   const orderNumber = generateOrderNumber();
   const trackingToken = crypto.randomBytes(16).toString("hex");
@@ -64,11 +132,15 @@ export async function createOrderFromCart(
       data: {
         orderNumber,
         trackingToken,
-        userId,
+        userId: userId ?? null,
+        sessionId: sessionId ?? null,
         status: "PENDING",
         paymentStatus: "PENDING",
         paymentMethod,
         totalAmount,
+        couponId: appliedCouponId,
+        discountAmount,
+        notes: guestEmail ? `Guest Email: ${guestEmail}` : null,
         items: {
           create: cart.items.map((item) => ({
             variantId: item.variantId,
@@ -86,28 +158,48 @@ export async function createOrderFromCart(
           })),
         },
         orderAddress: {
-          create: {
-            name: address.name,
-            phone: address.phone,
-            addressLine1: address.addressLine1,
-            addressLine2: address.addressLine2 ?? null,
-            city: address.city,
-            state: address.state,
-            postalCode: address.postalCode,
-            country: address.country,
-          },
+          create: addressData,
         },
       },
       include: { items: true },
     });
 
-    // Decrement inventory
+    if (appliedCouponId) {
+      // Atomic conditional increment: only succeeds if usedCount < usageLimit
+      // This prevents concurrent checkouts from exceeding the limit
+      const couponUpdate = await tx.$executeRaw`
+        UPDATE "Coupon"
+        SET used_count = used_count + 1
+        WHERE id = ${appliedCouponId}
+          AND (usage_limit IS NULL OR used_count < usage_limit)
+      `;
+      if (couponUpdate === 0) {
+        throw Object.assign(new Error("Coupon usage limit reached"), { statusCode: 409 });
+      }
+    }
+
+    // Commit inventory (transform soft hold to hard sale)
     for (const item of cart.items) {
       if (item.variant.inventory) {
+        // Delete the reservation record for this cart item
+        const reservation = await tx.inventoryReservation.findUnique({
+          where: { cartItemId: item.id },
+        });
+        const reservedRelease = reservation 
+          ? Math.min(item.quantity, reservation.quantity) 
+          : Math.min(item.quantity, item.variant.inventory.reserved);
+        
         await tx.inventory.update({
           where: { id: item.variant.inventory.id },
-          data: { quantity: { decrement: item.quantity } },
+          data: { 
+            quantity: { decrement: item.quantity },
+            reserved: { decrement: reservedRelease } 
+          },
         });
+
+        if (reservation) {
+          await tx.inventoryReservation.delete({ where: { id: reservation.id } });
+        }
       }
       await tx.inventoryLog.create({
         data: {
@@ -120,9 +212,28 @@ export async function createOrderFromCart(
       });
     }
 
-    await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    // Verify cart is still active and atomically mark as ORDERED
+    const updatedCart = await tx.cart.updateMany({
+      where: { id: cart.id, status: "ACTIVE" },
+      data: { status: "ORDERED" }
+    });
+    
+    if (updatedCart.count === 0) {
+      throw Object.assign(new Error("Cart has already been checked out"), { statusCode: 409 });
+    }
+
     return newOrder;
   });
+
+  const emailToSend = guestEmail ?? (userId ? (await prisma.user.findUnique({ where: { id: userId } }))?.email : null);
+  
+  if (emailToSend) {
+    try {
+      await EmailService.sendOrderConfirmation(emailToSend, order.orderNumber, Number(order.totalAmount));
+    } catch (error) {
+      console.error("Failed to queue order confirmation email", error);
+    }
+  }
 
   return order;
 }
@@ -173,29 +284,71 @@ export async function getOrderById(id: string, userId?: string) {
 }
 
 export async function updateOrderStatus(id: string, status: string, adminId?: string) {
-  const order = await prisma.order.findUnique({ where: { id }, include: { user: true } });
+  const order = await prisma.order.findUnique({ where: { id }, include: { user: true, items: true } });
   if (!order) throw Object.assign(new Error("Order not found"), { statusCode: 404 });
+  if (order.status === status) return order;
 
-  const updated = await prisma.order.update({ where: { id }, data: { status: status as any }, include: { user: true } });
+  const updated = await prisma.$transaction(async (tx) => {
+    const updatedOrder = await tx.order.update({ where: { id }, data: { status: status as any }, include: { user: true } });
+    
+    // Admin Cancelled Order -> Restock Inventory
+    if (status === "CANCELLED" && order.status !== "CANCELLED") {
+      for (const item of order.items) {
+        const inv = await tx.inventory.findUnique({ where: { variantId: item.variantId } });
+        if (inv) {
+          await tx.inventory.update({ where: { id: inv.id }, data: { quantity: { increment: item.quantity } } });
+        }
+        await tx.inventoryLog.create({
+          data: {
+            variantId: item.variantId,
+            orderId: id,
+            quantity: item.quantity,
+            type: "RESTOCK",
+            note: `Admin cancelled order ${order.orderNumber}`,
+          },
+        });
+      }
+      if (order.couponId) {
+        await tx.coupon.update({
+          where: { id: order.couponId },
+          data: { usedCount: { decrement: 1 } },
+        });
+      }
+    }
+    
+    if (adminId) {
+      await tx.orderLog.create({
+        data: {
+          orderId: id,
+          adminId,
+          action: "STATUS_UPDATE",
+          fromStatus: order.status,
+          toStatus: status as any,
+          note: `Status changed from ${order.status} to ${status}`,
+        },
+      });
+    }
 
-  if (adminId) {
-    await prisma.orderLog.create({
-      data: {
-        orderId: id,
-        adminId,
-        action: "STATUS_UPDATE",
-        fromStatus: order.status,
-        toStatus: status as any,
-        note: `Status changed from ${order.status} to ${status}`,
-      },
-    });
+    return updatedOrder;
+  });
+
+  const emailToSend = order.user?.email ?? 
+    (order.notes?.match(/Guest Email: ([^\s]+)/)?.[1]) ?? 
+    null;
+
+  if (emailToSend) {
+    try {
+      await EmailService.sendOrderStatusUpdate(emailToSend, order.orderNumber, status);
+    } catch (error) {
+      console.error("Failed to queue order status update email", error);
+    }
   }
 
   return updated;
 }
 
 export async function cancelOrder(id: string, userId: string) {
-  const order = await prisma.order.findUnique({ where: { id }, include: { items: true } });
+  const order = await prisma.order.findUnique({ where: { id }, include: { items: true, user: true } });
   if (!order || order.userId !== userId) throw Object.assign(new Error("Order not found"), { statusCode: 404 });
   if (!["PENDING", "RECEIVED"].includes(order.status)) {
     throw Object.assign(new Error("Order cannot be cancelled in its current status"), { statusCode: 400 });
@@ -219,5 +372,99 @@ export async function cancelOrder(id: string, userId: string) {
         },
       });
     }
+
+    if (order.couponId) {
+      await tx.coupon.update({
+        where: { id: order.couponId },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
   });
+
+  const emailToSend = order.user?.email ?? 
+    (order.notes?.match(/Guest Email: ([^\s]+)/)?.[1]) ?? 
+    null;
+
+  if (emailToSend) {
+    try {
+      await EmailService.sendOrderStatusUpdate(emailToSend, order.orderNumber, "CANCELLED");
+    } catch (error) {
+      console.error("Failed to queue order cancellation email", error);
+    }
+  }
+}
+
+export async function failOrder(id: string) {
+  const order = await prisma.order.findUnique({ where: { id }, include: { items: true, user: true } });
+  if (!order) throw Object.assign(new Error("Order not found"), { statusCode: 404 });
+  if (order.status !== "PENDING" && order.paymentStatus !== "PENDING") {
+    throw Object.assign(new Error("Order cannot be marked as failed in its current status"), { statusCode: 400 });
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.order.update({ where: { id }, data: { status: "FAILED", paymentStatus: "FAILED" } });
+
+    // Restock Inventory
+    for (const item of order.items) {
+      const inv = await tx.inventory.findUnique({ where: { variantId: item.variantId } });
+      if (inv) {
+        await tx.inventory.update({ where: { id: inv.id }, data: { quantity: { increment: item.quantity } } });
+      }
+      await tx.inventoryLog.create({
+        data: {
+          variantId: item.variantId,
+          orderId: id,
+          quantity: item.quantity,
+          type: "RESTOCK",
+          note: `Payment failed for order ${order.orderNumber}`,
+        },
+      });
+    }
+
+    if (order.couponId) {
+      await tx.coupon.update({
+        where: { id: order.couponId },
+        data: { usedCount: { decrement: 1 } },
+      });
+    }
+    
+    await tx.orderLog.create({
+      data: {
+        orderId: id,
+        action: "STATUS_UPDATE",
+        toStatus: "FAILED",
+        note: `Order marked as FAILED due to payment or system failure`,
+      },
+    });
+  });
+
+  const emailToSend = order.user?.email ?? 
+    (order.notes?.match(/Guest Email: ([^\s]+)/)?.[1]) ?? 
+    null;
+
+  if (emailToSend) {
+    try {
+      await EmailService.sendOrderStatusUpdate(emailToSend, order.orderNumber, "FAILED");
+    } catch (error) {
+      console.error("Failed to queue order failure email", error);
+    }
+  }
+}
+
+export async function getOrderByTrackingToken(token: string) {
+  const order = await prisma.order.findUnique({
+    where: { trackingToken: token },
+    include: {
+      items: true,
+      orderAddress: true,
+      shipments: true,
+      orderLogs: { orderBy: { createdAt: "desc" } }
+    }
+  });
+
+  if (!order) {
+    throw Object.assign(new Error("Order not found"), { statusCode: 404 });
+  }
+
+  return order;
 }

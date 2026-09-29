@@ -6,7 +6,10 @@ import { sendSuccess, sendError } from '../../middleware/response.js';
 
 const uploadSchema = z.object({
   fileName: z.string().min(1),
-  contentType: z.string().min(1),
+  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp', 'image/gif'], {
+    errorMap: () => ({ message: 'Only image uploads are allowed' }),
+  }),
+  size: z.number().max(5 * 1024 * 1024, 'File size must be under 5MB').optional(),
 });
 
 const uploadRoutes: FastifyPluginAsync = async (fastify) => {

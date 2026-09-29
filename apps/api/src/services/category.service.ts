@@ -5,6 +5,7 @@ import { logAction } from "./auditLog.service.js";
 // ─── List Categories ─────────────────────────────────────────────────────────
 export async function listCategories(opts?: {
   storeId?: string;
+  storeIds?: string[];
   parentId?: string | null;
   activeOnly?: boolean;
   includeDeleted?: boolean;
@@ -18,6 +19,7 @@ export async function listCategories(opts?: {
   if (!opts?.includeDeleted) where.deletedAt = null;
 
   if (opts?.storeId) where.storeId = opts.storeId;
+  else if (opts?.storeIds) where.storeId = { in: opts.storeIds };
   if (opts?.parentId !== undefined) where.parentId = opts.parentId;
   if (opts?.activeOnly) where.isActive = true;
   if (opts?.search) {

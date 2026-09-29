@@ -86,7 +86,7 @@ export default function StorefrontPage() {
 
   return (
     <div className="space-y-6 fade-in">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <p className="page-label">Content</p>
           <h1 className="page-title">Storefront Builder</h1>

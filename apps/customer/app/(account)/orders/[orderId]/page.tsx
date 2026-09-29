@@ -58,7 +58,7 @@ export default function OrderDetailPage() {
         {order.items?.map((item: any) => (
           <div key={item.id} className="flex items-center gap-3 p-4">
             <div className="h-12 w-12 rounded-lg bg-[var(--color-bg-muted)] flex items-center justify-center overflow-hidden shrink-0">
-              {item.imageUrl ? <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+              {item.imageUrl ? <img src={item.imageUrl} alt={item.productName} className="h-full w-full object-cover" />
                 : <Package size={14} className="text-[var(--color-text-tertiary)]" />}
             </div>
             <div className="flex-1 min-w-0">

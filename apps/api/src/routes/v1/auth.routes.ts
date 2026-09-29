@@ -13,10 +13,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
+      const guestSession = request.headers["x-guest-session"] as string | undefined;
+
       const { user, accessToken, refreshToken } = await authService.signupWithEmail(
         parsed.data.email,
         parsed.data.password,
-        parsed.data.fullName
+        parsed.data.fullName,
+        guestSession
       );
 
       setAuthCookies(reply, accessToken, refreshToken);
@@ -44,9 +47,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     try {
+      const guestSession = request.headers["x-guest-session"] as string | undefined;
+
       const { user, accessToken, refreshToken } = await authService.loginWithEmail(
         parsed.data.email,
-        parsed.data.password
+        parsed.data.password,
+        guestSession
       );
 
       setAuthCookies(reply, accessToken, refreshToken);

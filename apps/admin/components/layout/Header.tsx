@@ -1,12 +1,14 @@
 "use client";
 
-import { Bell, Search, LogOut, User, Settings } from "lucide-react";
+import { Bell, Search, LogOut, User, Settings, Menu } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
+import { useUiStore } from "@/stores/ui.store";
 import { useRouter } from "next/navigation";
 import { MenuDropdown } from "@/components/ui/Dropdown";
 
 export function Header() {
   const { user, logout } = useAuthStore();
+  const { toggleMobileSidebar } = useUiStore();
   const router = useRouter();
 
   const initials = user?.fullName
@@ -27,13 +29,23 @@ export function Header() {
   return (
     <header
       style={{ height: "var(--header-height)" }}
-      className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-surface)] px-6"
+      className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-bg-surface)] px-4 sm:px-6"
     >
-      {/* Search */}
-      <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] w-64 cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
-        <Search size={14} />
-        <span className="text-[var(--color-text-tertiary)]">Search...</span>
-        <span className="ml-auto text-xs text-[var(--color-text-tertiary)]">⌘K</span>
+      <div className="flex items-center gap-3">
+        {/* Mobile menu toggle */}
+        <button
+          onClick={toggleMobileSidebar}
+          className="md:hidden flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-base)] transition-colors"
+        >
+          <Menu size={20} />
+        </button>
+
+        {/* Search */}
+        <div className="hidden sm:flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-base)] px-3 py-1.5 text-sm text-[var(--color-text-secondary)] w-48 lg:w-64 cursor-pointer hover:border-[var(--color-border-strong)] transition-colors">
+          <Search size={14} />
+          <span className="text-[var(--color-text-tertiary)]">Search...</span>
+          <span className="ml-auto text-xs text-[var(--color-text-tertiary)]">⌘K</span>
+        </div>
       </div>
 
       {/* Right actions */}

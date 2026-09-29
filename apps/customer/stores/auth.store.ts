@@ -1,6 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { api } from "@/lib/api";
+import { useCartStore } from "./cart.store";
 
 interface User {
   id: string; email: string; fullName: string | null; avatar: string | null; role: string;
@@ -21,17 +22,26 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (email, password) => {
     const res = await api.post<{ user: User }>("/auth/login", { email, password });
-    if (res.data) set({ user: res.data.user, isAuthenticated: true });
+    if (res.data) {
+      set({ user: res.data.user, isAuthenticated: true });
+      localStorage.removeItem("guest_session_id");
+      useCartStore.getState().fetchCart();
+    }
   },
 
   signup: async (email, password, fullName) => {
     const res = await api.post<{ user: User }>("/auth/signup", { email, password, fullName });
-    if (res.data) set({ user: res.data.user, isAuthenticated: true });
+    if (res.data) {
+      set({ user: res.data.user, isAuthenticated: true });
+      localStorage.removeItem("guest_session_id");
+      useCartStore.getState().fetchCart();
+    }
   },
 
   logout: async () => {
     await api.post("/auth/logout");
     set({ user: null, isAuthenticated: false });
+    useCartStore.getState().fetchCart();
   },
 
   fetchUser: async () => {
