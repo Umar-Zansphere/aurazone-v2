@@ -27,7 +27,8 @@ const buildServer = async () => {
     (req, body, done) => {
       (req as any).rawBody = body;
       try {
-        const json = JSON.parse(body.toString());
+        const bodyStr = body.toString();
+        const json = bodyStr ? JSON.parse(bodyStr) : {};
         done(null, json);
       } catch (err: any) {
         done(err, undefined);

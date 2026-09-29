@@ -167,21 +167,24 @@ export function setAuthCookies(
   accessToken: string,
   refreshToken: string
 ): void {
+  const cookieDomain = env.COOKIE_DOMAIN === "localhost" ? undefined : env.COOKIE_DOMAIN;
+  const sameSite = env.NODE_ENV === "production" ? "none" : "lax";
+
   reply.setCookie("access_token", accessToken, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: "lax",
+    sameSite,
     path: "/",
-    domain: env.COOKIE_DOMAIN,
+    domain: cookieDomain,
     maxAge: 15 * 60, // 15 minutes
   });
 
   reply.setCookie("refresh_token", refreshToken, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: "lax",
+    sameSite,
     path: "/api/v1/auth/refresh",
-    domain: env.COOKIE_DOMAIN,
+    domain: cookieDomain,
     maxAge: 7 * 24 * 60 * 60, // 7 days
   });
 }
