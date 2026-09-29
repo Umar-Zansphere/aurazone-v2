@@ -1,9 +1,3 @@
--- AlterEnum
-ALTER TYPE "PaymentStatus" ADD VALUE 'REFUNDED';
-
--- DropIndex
-DROP INDEX "Payment_gateway_gateway_order_id_key";
-
 -- CreateTable
 CREATE TABLE "InventoryReservation" (
     "id" TEXT NOT NULL,
