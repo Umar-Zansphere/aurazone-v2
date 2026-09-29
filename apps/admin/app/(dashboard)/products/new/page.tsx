@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { ArrowLeft, Plus, Trash2, Package } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Package, Check, X } from "lucide-react";
 import Link from "next/link";
 
 interface Store { id: string; name: string; slug: string; }
@@ -28,6 +28,9 @@ export default function NewProductPage() {
   const [variants, setVariants] = useState<VariantForm[]>([
     { sku: "", price: "", compareAtPrice: "", attributes: [] },
   ]);
+
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   const { data: storesData } = useQuery({
     queryKey: ["admin", "stores"],
@@ -127,37 +130,90 @@ export default function NewProductPage() {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="form-label !mb-0">Category</label>
-                {storeId && (
+                {storeId && !isCreatingCategory && (
                   <button
                     type="button"
-                    onClick={() => {
-                      const name = window.prompt("Enter new category name:");
-                      if (name) {
-                        api.post("/admin/categories", {
-                          storeId,
-                          name,
-                          slug: slugify(name),
-                          isActive: true,
-                        }).then((res: any) => {
-                          // Quick hack to force refetch without adding queryClient to deps
-                          const evt = new Event("focus");
-                          window.dispatchEvent(evt); 
-                          setCategoryId(res.data.id);
-                        }).catch(err => alert(err.message));
-                      }
-                    }}
+                    onClick={() => setIsCreatingCategory(true)}
                     className="text-[10px] text-[var(--color-accent)] hover:underline font-medium"
                   >
                     + Quick Create
                   </button>
                 )}
               </div>
-              <select className="form-input" required value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)} disabled={!storeId}>
-                <option value="">Select category...</option>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-              {storeId && categories.length === 0 && (
+
+              {isCreatingCategory ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <input
+                    type="text"
+                    autoFocus
+                    className="form-input py-2 text-sm flex-1"
+                    placeholder="Category name"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (newCategoryName) {
+                          api.post("/admin/categories", {
+                            storeId,
+                            name: newCategoryName,
+                            slug: slugify(newCategoryName),
+                            isActive: true,
+                          }).then((res: any) => {
+                            const evt = new Event("focus");
+                            window.dispatchEvent(evt); 
+                            setCategoryId(res.data.id);
+                            setIsCreatingCategory(false);
+                            setNewCategoryName("");
+                          }).catch(err => alert(err.message));
+                        }
+                      } else if (e.key === "Escape") {
+                        setIsCreatingCategory(false);
+                        setNewCategoryName("");
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newCategoryName) {
+                        api.post("/admin/categories", {
+                          storeId,
+                          name: newCategoryName,
+                          slug: slugify(newCategoryName),
+                          isActive: true,
+                        }).then((res: any) => {
+                          const evt = new Event("focus");
+                          window.dispatchEvent(evt); 
+                          setCategoryId(res.data.id);
+                          setIsCreatingCategory(false);
+                          setNewCategoryName("");
+                        }).catch(err => alert(err.message));
+                      }
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--color-accent)] text-white hover:bg-black transition-colors"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingCategory(false);
+                      setNewCategoryName("");
+                    }}
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] text-gray-500 hover:bg-gray-50 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ) : (
+                <select className="form-input" required value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)} disabled={!storeId}>
+                  <option value="">Select category...</option>
+                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
+              {storeId && categories.length === 0 && !isCreatingCategory && (
                 <p className="text-xs text-amber-500 mt-1">This store has no categories. Create one first.</p>
               )}
             </div>
