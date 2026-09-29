@@ -1,159 +1,129 @@
-# Turborepo starter
+# AuraZone V2
 
-This Turborepo starter is maintained by the Turborepo core team.
+AuraZone V2 is a modern, high-performance, full-stack e-commerce platform built as a monorepo using **Turborepo** and **pnpm**.
 
-## Using this example
+## 🏗️ Architecture & Tech Stack
 
-Run the following command:
+This project is structured as a monorepo containing multiple apps and shared packages.
 
-```sh
-npx create-turbo@latest
-```
+### Apps
 
-## What's inside?
+- `apps/api`: **Fastify** backend server (REST API, Redis, BullMQ).
+- `apps/customer`: **Next.js** storefront for end-users.
+- `apps/admin`: **Next.js** dashboard for store managers and super admins.
 
-This Turborepo includes the following packages/apps:
+### Shared Packages (`packages/*`)
 
-### Apps and Packages
+- `@aurazone/database`: **Prisma ORM** schema, migrations, seeds, and typed client.
+- `@aurazone/ui`: Shared React component library (Tailwind, Radix UI).
+- `@aurazone/validators`: **Zod** validation schemas shared between frontend and backend.
+- `@aurazone/api-client`: Shared API fetching logic.
+- `@aurazone/utils`: Shared utility functions.
+- `@aurazone/config-tailwind`: Shared Tailwind CSS configuration.
+- `@aurazone/config-eslint`: Shared ESLint configurations.
+- `@aurazone/typescript-config`: Base `tsconfig.json` files.
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+---
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+## 🚀 Getting Started Locally
 
-### Utilities
+### 1. Prerequisites
+- **Node.js** (v20 or higher)
+- **pnpm** (v9+)
+- **PostgreSQL** database
+- **Redis** server
 
-This Turborepo has some additional tools already setup for you:
+### 2. Installation
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
-```
-
-Without global `turbo`, use your package manager:
+Clone the repository and install all dependencies from the root:
 
 ```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
+pnpm install
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+### 3. Environment Variables
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+You need to create a `.env` file in the root directory. You can copy the provided example:
 
 ```sh
-turbo build --filter=docs
+cp .env.example .env
 ```
 
-Without global `turbo`:
+Make sure to update `.env` with your local PostgreSQL and Redis credentials.
+
+You will also need `.env.local` files inside the frontend apps (`apps/admin` and `apps/customer`) containing:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+```
+
+### 4. Database Setup
+
+Run the following commands to generate the Prisma client, apply migrations, and seed the database with initial data:
 
 ```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+pnpm run db:generate
+pnpm run db:migrate:dev
+pnpm run db:seed
 ```
 
-### Develop
+### 5. Running the Development Servers
 
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+Use Turborepo to start the API, Admin, and Customer apps simultaneously:
 
 ```sh
-cd my-turborepo
-turbo dev
+pnpm run dev
 ```
 
-Without global `turbo`, use your package manager:
+- API Server: `http://localhost:4000`
+- Customer App: `http://localhost:3000`
+- Admin App: `http://localhost:3001`
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
+---
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## 📦 Deployment Guide
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+### Backend (Render - Web Service)
 
-```sh
-turbo dev --filter=web
-```
+1. Connect your GitHub repository to Render and create a new **Web Service**.
+2. **Environment**: Node
+3. **Root Directory**: *(leave blank)*
+4. **Build Command**:
+   ```bash
+   pnpm install --prod=false && pnpm --filter @aurazone/database db:generate && pnpm --filter @aurazone/database db:migrate && pnpm --filter @aurazone/database db:seed && pnpm run build
+   ```
+5. **Start Command**:
+   ```bash
+   pnpm --filter @aurazone/api start
+   ```
+6. **Environment Variables**:
+   - Add all your production secrets (e.g., `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, etc.)
+   - Set `NODE_ENV` to `production`
+   - Set `PNPM_VERSION` to `9.12.0`
+   - Set `CUSTOMER_URL` and `ADMIN_URL` to your Vercel frontend URLs for proper CORS handling.
 
-Without global `turbo`:
+### Frontends (Vercel)
 
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
+Create two separate projects in Vercel, pointing to the same repository.
 
-### Remote Caching
+#### Customer App
+- **Root Directory**: `apps/customer`
+- **Framework Preset**: Next.js
+- **Install Command**: `pnpm install`
+- **Environment Variables**:
+  - `NEXT_PUBLIC_API_URL`: `https://your-render-backend.onrender.com/api/v1`
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+#### Admin App
+- **Root Directory**: `apps/admin`
+- **Framework Preset**: Next.js
+- **Install Command**: `pnpm install`
+- **Environment Variables**:
+  - `NEXT_PUBLIC_API_URL`: `https://your-render-backend.onrender.com/api/v1`
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+---
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+## 🛠️ Useful Commands
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- `pnpm run build` - Builds all apps and packages.
+- `pnpm run lint` - Lints the entire monorepo.
+- `pnpm run check-types` - Runs TypeScript type checking across all packages.
+- `pnpm run db:studio` - Opens Prisma Studio to view and edit your database visually.
