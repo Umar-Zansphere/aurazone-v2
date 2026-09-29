@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
@@ -11,6 +11,7 @@ import Link from "next/link";
 
 export default function ProductDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const queryClient = useQueryClient();
   const { addToCart, isLoading: cartLoading } = useCartStore();
@@ -79,6 +80,14 @@ export default function ProductDetailPage() {
       await addToCart(variant.id, quantity);
       setAddedToCart(true);
       setTimeout(() => setAddedToCart(false), 2000);
+    } catch { /* logged in store */ }
+  };
+
+  const handleBuyNow = async () => {
+    if (!variant) return;
+    try {
+      await addToCart(variant.id, quantity);
+      router.push("/checkout");
     } catch { /* logged in store */ }
   };
 
@@ -240,7 +249,7 @@ export default function ProductDetailPage() {
           {/* Stock */}
           <div className="text-sm">
             {stock > 0 ? (
-              <span className="text-emerald-600 font-medium">✓ In Stock ({stock} available)</span>
+              <span className="text-emerald-600 font-medium">✓ In Stock</span>
             ) : (
               <span className="text-red-500 font-medium">✕ Out of Stock</span>
             )}
@@ -273,10 +282,18 @@ export default function ProductDetailPage() {
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {addedToCart ? (
-                <><Check size={16} /> Added to Cart</>
+                <><Check size={16} /> Added</>
               ) : (
                 <><ShoppingCart size={16} /> {cartLoading ? "Adding..." : "Add to Cart"}</>
               )}
+            </button>
+
+            <button
+              onClick={handleBuyNow}
+              disabled={stock === 0 || cartLoading}
+              className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold bg-[var(--color-accent)] text-white hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Buy Now
             </button>
 
             {isAuthenticated && (
