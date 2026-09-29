@@ -6,8 +6,9 @@ import { api } from "@/lib/api";
 import {
   Plus, Search, Edit2, Trash2, Store as StoreIcon,
   CheckCircle, XCircle, X, Package, Tag, ExternalLink,
-  ToggleLeft, ToggleRight, AlertTriangle,
+  ToggleLeft, ToggleRight, AlertTriangle, ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 
 interface Store {
   id: string;
@@ -459,15 +460,15 @@ export default function StoresPage() {
                 stores.map((store) => (
                   <tr key={store.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors group">
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                      <Link href={`/stores/${store.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                         <div
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-white font-bold text-xs"
                           style={{ backgroundColor: store.accentColor ?? "#6F7F5F" }}
                         >
                           {store.name[0]}
                         </div>
-                        <span className="font-semibold text-[var(--color-text-primary)]">{store.name}</span>
-                      </div>
+                        <span className="font-semibold text-[var(--color-text-primary)] hover:underline">{store.name}</span>
+                      </Link>
                     </td>
                     <td className="px-6 py-4 font-mono text-xs text-[var(--color-text-secondary)]">/{store.slug}</td>
                     <td className="px-6 py-4 text-[var(--color-text-secondary)]">{store._count?.categories ?? 0}</td>
@@ -493,6 +494,13 @@ export default function StoresPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-1 transition-opacity">
+                        <Link
+                          href={`/stores/${store.id}`}
+                          className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)] transition-colors border border-transparent hover:border-[var(--color-border)] hover:shadow-sm"
+                          title="Manage Store"
+                        >
+                          <ArrowRight size={14} />
+                        </Link>
                         <a
                           href={`/store/${store.slug}`}
                           target="_blank"
