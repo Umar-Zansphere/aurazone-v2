@@ -23,7 +23,7 @@ export const v1Routes: FastifyPluginAsync = async (fastify) => {
   await fastify.register(categoryRoutes, { prefix: "/categories" });
   await fastify.register(productRoutes, { prefix: "/products" });
   await fastify.register(storefrontRoutes, { prefix: "/storefront" });
-  await fastify.register(sessionRoutes, { prefix: "/session" });
+  await fastify.register(sessionRoutes, { prefix: "/sessions" });
 
   // Auth-required routes
   await fastify.register(cartRoutes, { prefix: "/cart" });
