@@ -311,7 +311,32 @@ export default function ProductForm({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="form-label">Category</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="form-label !mb-0">Category</label>
+                {storeId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = window.prompt("Enter new category name:");
+                      if (name) {
+                        api.post("/admin/categories", {
+                          storeId,
+                          name,
+                          slug: slugify(name),
+                          isActive: true,
+                        }).then((res: any) => {
+                          const evt = new Event("focus");
+                          window.dispatchEvent(evt); 
+                          setForm(f => ({ ...f, categoryId: res.data.id }));
+                        }).catch(err => alert(err.message));
+                      }
+                    }}
+                    className="text-[10px] text-[var(--color-accent)] hover:underline font-medium"
+                  >
+                    + Quick Create
+                  </button>
+                )}
+              </div>
               <select className="form-input" required value={form.categoryId}
                 onChange={(e) => setForm(f => ({ ...f, categoryId: e.target.value }))}>
                 <option value="">Select category</option>
@@ -319,6 +344,9 @@ export default function ProductForm({
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {storeId && categories.length === 0 && (
+                <p className="text-xs text-amber-500 mt-1">This store has no categories. Create one first.</p>
+              )}
             </div>
             <div>
               <label className="form-label">Brand</label>

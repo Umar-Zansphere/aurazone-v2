@@ -125,12 +125,41 @@ export default function NewProductPage() {
               </select>
             </div>
             <div>
-              <label className="form-label">Category</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="form-label !mb-0">Category</label>
+                {storeId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const name = window.prompt("Enter new category name:");
+                      if (name) {
+                        api.post("/admin/categories", {
+                          storeId,
+                          name,
+                          slug: slugify(name),
+                          isActive: true,
+                        }).then((res: any) => {
+                          // Quick hack to force refetch without adding queryClient to deps
+                          const evt = new Event("focus");
+                          window.dispatchEvent(evt); 
+                          setCategoryId(res.data.id);
+                        }).catch(err => alert(err.message));
+                      }
+                    }}
+                    className="text-[10px] text-[var(--color-accent)] hover:underline font-medium"
+                  >
+                    + Quick Create
+                  </button>
+                )}
+              </div>
               <select className="form-input" required value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)} disabled={!storeId}>
                 <option value="">Select category...</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {storeId && categories.length === 0 && (
+                <p className="text-xs text-amber-500 mt-1">This store has no categories. Create one first.</p>
+              )}
             </div>
           </div>
           <div>
