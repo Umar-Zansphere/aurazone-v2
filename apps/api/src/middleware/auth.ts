@@ -183,7 +183,7 @@ export function setAuthCookies(
     httpOnly: true,
     secure: env.COOKIE_SECURE,
     sameSite,
-    path: "/api/v1/auth/refresh",
+    path: "/api/v1/auth",
     domain: cookieDomain,
     maxAge: 7 * 24 * 60 * 60, // 7 days
   });
@@ -194,5 +194,5 @@ export function setAuthCookies(
  */
 export function clearAuthCookies(reply: FastifyReply): void {
   reply.clearCookie("access_token", { path: "/" });
-  reply.clearCookie("refresh_token", { path: "/api/v1/auth/refresh" });
+  reply.clearCookie("refresh_token", { path: "/api/v1/auth" });
 }

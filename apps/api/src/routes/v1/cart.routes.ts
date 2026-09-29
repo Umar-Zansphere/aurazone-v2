@@ -11,7 +11,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
   const getCartWhere = (request: any) => {
     const userId = request.user?.userId;
     const sessionId = request.headers["x-guest-session"];
-    if (!userId && !sessionId) throw new Error("Unauthorized");
+    if (!userId && !sessionId) return null;
     
     return userId 
       ? { userId, status: "ACTIVE" as const }
@@ -21,7 +21,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
   const getCartCreateData = (request: any) => {
     const userId = request.user?.userId;
     const sessionId = request.headers["x-guest-session"];
-    if (!userId && !sessionId) throw new Error("Unauthorized");
+    if (!userId && !sessionId) return null;
     
     return userId ? { userId } : { sessionId };
   };
@@ -29,6 +29,10 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get("/", async (request, reply) => {
     try {
       const where = getCartWhere(request);
+      if (!where) {
+        return sendSuccess(reply, { items: [], itemCount: 0, subtotal: 0 });
+      }
+
       let cart = await prisma.cart.findFirst({
         where,
         include: {
@@ -54,8 +58,12 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       });
 
       if (!cart) {
+        const createData = getCartCreateData(request);
+        if (!createData) {
+          return sendSuccess(reply, { items: [], itemCount: 0, subtotal: 0 });
+        }
         cart = await prisma.cart.create({
-          data: getCartCreateData(request),
+          data: createData,
           include: { items: { include: { variant: true } } },
         }) as unknown as typeof cart;
       }
@@ -75,7 +83,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
         subtotal,
       });
     } catch (e: any) {
-      return sendError(reply, e.message, 401);
+      return sendError(reply, e.message, 500);
     }
   });
 
@@ -83,6 +91,12 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const parsed = addToCartSchema.safeParse(request.body);
       if (!parsed.success) return sendError(reply, parsed.error.errors[0].message, 400);
+
+      const where = getCartWhere(request);
+      const createData = getCartCreateData(request);
+      if (!where || !createData) {
+        return sendError(reply, "Please create a session first or log in", 400);
+      }
 
       const variant = await prisma.productVariant.findUnique({
         where: { id: parsed.data.variantId },
@@ -93,10 +107,9 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
         return sendError(reply, "Product variant not available", 400);
       }
 
-      const where = getCartWhere(request);
       let cart = await prisma.cart.findFirst({ where });
       if (!cart) {
-        cart = await prisma.cart.create({ data: getCartCreateData(request) });
+        cart = await prisma.cart.create({ data: createData });
       }
 
       const stock = (variant.inventory?.quantity ?? 0) - (variant.inventory?.reserved ?? 0);
@@ -130,7 +143,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
 
       return sendSuccess(reply, { message: "Item added to cart" }, 201);
     } catch (e: any) {
-      return sendError(reply, e.message, 401);
+      return sendError(reply, e.message, 500);
     }
   });
 
@@ -172,7 +185,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       });
       return sendSuccess(reply, updated);
     } catch (e: any) {
-      return sendError(reply, e.message, 401);
+      return sendError(reply, e.message, 500);
     }
   });
 
@@ -198,13 +211,16 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       await prisma.cartItem.delete({ where: { id: itemId } });
       return sendSuccess(reply, { message: "Item removed from cart" });
     } catch (e: any) {
-      return sendError(reply, e.message, 401);
+      return sendError(reply, e.message, 500);
     }
   });
 
   fastify.delete("/", async (request, reply) => {
     try {
       const where = getCartWhere(request);
+      if (!where) {
+        return sendSuccess(reply, { message: "Cart cleared" });
+      }
       const cart = await prisma.cart.findFirst({ where, include: { items: true } });
       if (cart) {
         for (const item of cart.items) {
@@ -214,7 +230,7 @@ const cartRoutes: FastifyPluginAsync = async (fastify) => {
       }
       return sendSuccess(reply, { message: "Cart cleared" });
     } catch (e: any) {
-      return sendError(reply, e.message, 401);
+      return sendError(reply, e.message, 500);
     }
   });
 };

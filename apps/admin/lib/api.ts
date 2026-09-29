@@ -29,7 +29,12 @@ class ApiClient {
     });
 
     // If 401 and not already a retry, attempt token refresh
-    if (res.status === 401 && !_isRetry && !path.includes("/auth/refresh") && !path.includes("/auth/login")) {
+    if (
+      res.status === 401 &&
+      !_isRetry &&
+      !path.includes("/auth/refresh") &&
+      !path.includes("/auth/login")
+    ) {
       const refreshed = await this.tryRefresh();
       if (refreshed) {
         return this.request<T>(path, options, true);

@@ -33,14 +33,22 @@ class ApiClient {
       },
     });
 
-    // If 401 and not already a retry, attempt token refresh
-    if (res.status === 401 && !_isRetry && !path.includes("/auth/refresh") && !path.includes("/auth/login")) {
+    // If 401 and not already a retry, attempt token refresh (only for authenticated users)
+    if (
+      res.status === 401 &&
+      !_isRetry &&
+      !path.includes("/auth/refresh") &&
+      !path.includes("/auth/login") &&
+      !path.includes("/auth/signup") &&
+      !path.includes("/sessions")
+    ) {
+      // Only attempt refresh if user has likely been authenticated
+      // (the browser will have the refresh_token cookie if they logged in)
       const refreshed = await this.tryRefresh();
       if (refreshed) {
         return this.request<T>(path, options, true);
       }
-      // Refresh failed — clear auth state
-      throw new Error("Session expired");
+      // Refresh failed — don't throw generic error, let the original response through
     }
 
     const json = await res.json();
