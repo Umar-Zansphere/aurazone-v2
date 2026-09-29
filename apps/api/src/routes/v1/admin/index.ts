@@ -264,18 +264,18 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       if (!variant) return sendError(reply, "Variant not found", 404);
 
       // Get current max position
-      const existingImages = await prisma.variantImage.findMany({
+      const existingImages = await prisma.productImage.findMany({
         where: { variantId },
         orderBy: { position: "desc" },
         take: 1,
       });
       let nextPos = existingImages.length > 0 ? existingImages[0].position + 1 : 0;
 
-      const created = await prisma.variantImage.createMany({
+      const created = await prisma.productImage.createMany({
         data: urls.map((img, i) => ({
           variantId,
           url: img.url,
-          altText: img.altText ?? null,
+          altText: img.altText ?? "",
           position: img.position ?? nextPos + i,
         })),
       });
@@ -295,7 +295,7 @@ const adminRoutes: FastifyPluginAsync = async (fastify) => {
       const product = await productService.getProductById(productId);
       await assertStoreAccess(request.user!, (product as any).storeId ?? (product as any).store?.id);
 
-      await prisma.variantImage.delete({ where: { id: imageId } });
+      await prisma.productImage.delete({ where: { id: imageId } });
       return sendSuccess(reply, { message: "Image deleted" });
     } catch (err: unknown) {
       const error = err as Error & { statusCode?: number };
