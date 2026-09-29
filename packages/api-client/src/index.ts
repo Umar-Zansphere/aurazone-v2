@@ -29,11 +29,14 @@ const buildUrl = (path: string, params?: Record<string, string | number | boolea
 };
 
 export const createClient = (baseUrl: string) => {
+  let isRefreshing = false;
+  let refreshPromise: Promise<boolean> | null = null;
+
   const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
     const { params, ...init } = options;
     const url = buildUrl(`${baseUrl}${path}`, params);
 
-    const response = await fetch(url, {
+    const executeRequest = async () => fetch(url, {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
@@ -41,6 +44,31 @@ export const createClient = (baseUrl: string) => {
       },
       ...init,
     });
+
+    let response = await executeRequest();
+
+    // Automatic token refresh on 401
+    if (response.status === 401 && !path.includes("/auth/login") && !path.includes("/auth/refresh")) {
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = fetch(`${baseUrl}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        }).then(res => {
+          isRefreshing = false;
+          return res.ok;
+        }).catch(() => {
+          isRefreshing = false;
+          return false;
+        });
+      }
+
+      const refreshed = await refreshPromise;
+      if (refreshed) {
+        // Retry the original request
+        response = await executeRequest();
+      }
+    }
 
     if (response.status === 401) throw new ApiError("Unauthorized", 401);
     if (response.status === 403) throw new ApiError("Forbidden", 403);
