@@ -193,6 +193,9 @@ export function setAuthCookies(
  * Clear auth cookies.
  */
 export function clearAuthCookies(reply: FastifyReply): void {
-  reply.clearCookie("access_token", { path: "/" });
-  reply.clearCookie("refresh_token", { path: "/api/v1/auth" });
+  const cookieDomain = env.COOKIE_DOMAIN === "localhost" ? undefined : env.COOKIE_DOMAIN;
+  reply.clearCookie("access_token", { path: "/", domain: cookieDomain });
+  reply.clearCookie("refresh_token", { path: "/api/v1/auth", domain: cookieDomain });
+  // Also clear the old path so legacy cookies don't cause infinite 401 loops
+  reply.clearCookie("refresh_token", { path: "/api/v1/auth/refresh", domain: cookieDomain });
 }
